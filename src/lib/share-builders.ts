@@ -27,7 +27,7 @@ const tone = (v: Decimal | null | undefined): CardModel["tone"] =>
   !v || v.isZero() ? "neutral" : v.isPositive() ? "positive" : "negative";
 const statTone = (v: Decimal | null | undefined) => (!v || v.isZero() ? undefined : v.isPositive() ? ("positive" as const) : ("negative" as const));
 const money = (v: Decimal | string, signed = false) => formatCurrency(v, { reveal: true, signed });
-const footer = () => `Hecho con cúmulo · ${formatDate(todayIso())}`;
+const footer = () => formatDate(todayIso());
 const logoUrl = (asset: Asset) =>
   asset.priceSource !== "manual" && asset.priceSourceId ? `/api/logo?key=${encodeURIComponent(`${asset.priceSource}:${asset.priceSourceId}`)}` : undefined;
 const initials = (asset: Asset) => (asset.ticker || asset.name).replace(/[^A-Za-z0-9]/g, "").slice(0, 4).toUpperCase();
@@ -55,6 +55,7 @@ function lineChart(
   from: string,
   to?: string,
   baseline?: Decimal | null,
+  baselineLabel?: string,
 ): CardChartLine | undefined {
   const series = priceSeriesWithTrades(
     to ? closes.filter((p) => p.date <= to) : closes,
@@ -74,6 +75,7 @@ function lineChart(
     values: sampled.map((p) => Number(p.close.toFixed(6))),
     markers: series.markers.map((m) => ({ index: indexOf(m.date), tone: m.type })),
     baseline: baseline ? Number(baseline.toFixed(6)) : undefined,
+    baselineLabel,
   };
 }
 
@@ -104,10 +106,19 @@ export async function buildPositionCard(data: PortfolioData, assetId: string, { 
     title: asset.name,
     logoUrl: logoUrl(asset),
     initials: initials(asset),
+    heroLabel: open ? "Rentabilidad de la posición" : "Resultado de la posición",
     hero: pct ? formatPercent(pct) : "—",
     tone: tone(pct),
     subtitle: `Desde ${formatDate(first)} · ${formatNumber(new Decimal(daysBetween(first, todayIso())), 0)} días${showAmounts ? ` · ${formatQuantity(position.quantity, { reveal: true })} uds` : ""}`,
-    chart: lineChart(closes, trades, valuation?.price ?? null, first, undefined, open ? position.averageCost : null),
+    chart: lineChart(
+      closes,
+      trades,
+      valuation?.price ?? null,
+      first,
+      undefined,
+      open ? position.averageCost : null,
+      open ? `Mi precio medio · ${money(position.averageCost)}` : undefined,
+    ),
     stats,
     footer: footer(),
   };
@@ -140,6 +151,7 @@ export async function buildOperationCard(data: PortfolioData, transaction: Trans
       title: asset.name,
       logoUrl: logoUrl(asset),
       initials: initials(asset),
+      heroLabel: "Resultado de la venta",
       hero: d.gainPct ? formatPercent(d.gainPct) : "—",
       tone: tone(d.gainPct),
       subtitle: `Vendí el ${formatDate(date)} a ${money(transaction.price)}`,
@@ -168,6 +180,7 @@ export async function buildOperationCard(data: PortfolioData, transaction: Trans
     title: asset.name,
     logoUrl: logoUrl(asset),
     initials: initials(asset),
+    heroLabel: "Desde que compré",
     hero: hero ? formatPercent(hero) : "—",
     tone: tone(hero),
     subtitle: `Compré el ${formatDate(date)} a ${money(transaction.price)}`,
@@ -183,7 +196,9 @@ export async function buildPortfolioCard(data: PortfolioData, { showAmounts }: S
   const annual = annualReturn(data.transactions, v.totalValue, todayIso());
   const first = sortTransactions(data.transactions)[0]?.date.slice(0, 10) ?? todayIso();
   const slices = allocationByAsset(v, 6);
-  const best = v.positions.filter((p) => p.unrealizedPct).sort((a, b) => b.unrealizedPct!.comparedTo(a.unrealizedPct!))[0];
+  const ranked = v.positions.filter((p) => p.unrealizedPct).sort((a, b) => b.unrealizedPct!.comparedTo(a.unrealizedPct!));
+  const best = ranked[0];
+  const worst = ranked.length > 1 ? ranked[ranked.length - 1] : undefined;
 
   const stats: CardModel["stats"] = [
     { label: "Rentabilidad anual", value: annual ? formatPercent(annual) : "Menos de 1 año", tone: statTone(annual) },
@@ -193,7 +208,11 @@ export async function buildPortfolioCard(data: PortfolioData, { showAmounts }: S
       value: best ? `${data.assets.get(best.position.assetId)?.ticker ?? data.assets.get(best.position.assetId)?.name ?? ""} ${formatPercent(best.unrealizedPct!)}` : "—",
       tone: statTone(best?.unrealizedPct),
     },
-    { label: "Posiciones", value: String(v.positions.length) },
+    {
+      label: "Peor posición",
+      value: worst ? `${data.assets.get(worst.position.assetId)?.ticker ?? data.assets.get(worst.position.assetId)?.name ?? ""} ${formatPercent(worst.unrealizedPct!)}` : "—",
+      tone: statTone(worst?.unrealizedPct),
+    },
   ];
   if (showAmounts) {
     stats.push({ label: "Valor", value: money(v.totalValue) });
@@ -203,13 +222,16 @@ export async function buildPortfolioCard(data: PortfolioData, { showAmounts }: S
   return {
     eyebrow: "Mi cartera",
     title: `${v.positions.length} ${v.positions.length === 1 ? "posición" : "posiciones"}`,
-    initials: "€",
+    brandAvatar: true,
+    heroLabel: "Rentabilidad total",
     hero: total ? formatPercent(total) : "—",
     tone: tone(total),
-    subtitle: `Rentabilidad total desde ${formatDate(first)}`,
+    subtitle: `Desde ${formatDate(first)}`,
     chart: slices.length
       ? {
           kind: "donut",
+          centerValue: String(v.positions.length),
+          centerLabel: v.positions.length === 1 ? "activo" : "activos",
           slices: slices.map((s, i) => ({
             share: Number(s.share.toFixed(6)),
             color: s.key === "other" ? OTHER : PALETTE[i % PALETTE.length],
@@ -249,7 +271,8 @@ export async function buildYearCard(data: PortfolioData, s: YearSummary, { showA
   return {
     eyebrow: isCurrent ? "Mi año hasta hoy" : "Mi año",
     title: `Mi ${s.year} en cúmulo`,
-    initials: String(s.year).slice(2),
+    brandAvatar: true,
+    heroLabel: isCurrent ? "Rentabilidad del año hasta hoy" : "Rentabilidad del año",
     hero: pct ? formatPercent(pct) : "—",
     tone: tone(pct),
     subtitle: `${s.buys} ${s.buys === 1 ? "compra" : "compras"} · ${s.sells} ${s.sells === 1 ? "venta" : "ventas"}`,
