@@ -34,6 +34,8 @@ export interface HistoryPoint {
 export interface HistoryOptions {
   /** Precio actual por activo (caché/manual); se usa el último día y como respaldo. */
   currentPrices: ReadonlyMap<string, Decimal>;
+  /** Valorar el último día con el precio actual (por defecto). Para años pasados, false. */
+  currentOnLastDay?: boolean;
 }
 
 const day = (iso: string) => iso.slice(0, 10);
@@ -42,7 +44,7 @@ export function portfolioHistory(
   transactions: readonly Transaction[],
   closes: ReadonlyMap<string, readonly ClosePoint[]>,
   dates: readonly string[],
-  { currentPrices }: HistoryOptions,
+  { currentPrices, currentOnLastDay = true }: HistoryOptions,
 ): HistoryPoint[] {
   const sorted = sortTransactions(transactions);
   const state = createPortfolioState();
@@ -53,7 +55,7 @@ export function portfolioHistory(
   return dates.map((date, index) => {
     while (next < sorted.length && day(sorted[next].date) <= date) applyTransaction(state, sorted[next++]);
 
-    const isLast = index === dates.length - 1;
+    const isLast = currentOnLastDay && index === dates.length - 1;
     let value = new Decimal(0);
     let invested = new Decimal(0);
 

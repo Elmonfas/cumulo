@@ -1,4 +1,4 @@
-import { CalendarSync, ChevronRight, TrendingUp } from "lucide-react";
+import { CalendarSync, ChevronRight, Sparkles, TrendingUp } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
@@ -6,6 +6,12 @@ import { PageHeader } from "@/components/layout/page-header";
 export const metadata: Metadata = { title: "Herramientas" };
 
 const TOOLS = [
+  {
+    href: "/herramientas/tu-ano",
+    title: "Tu año en cúmulo",
+    description: "Tu resumen del año: meses aportando, mejor mes, mejor compra y más.",
+    icon: Sparkles,
+  },
   {
     href: "/herramientas/interes-compuesto",
     title: "Interés compuesto",

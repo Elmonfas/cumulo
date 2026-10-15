@@ -10,6 +10,7 @@ import { fetchHistory } from "@/hooks/use-price-histories";
 import type { PortfolioData } from "@/hooks/use-portfolio";
 import { formatCurrency, formatDate, formatNumber, formatPercent, formatQuantity, todayIso } from "@/lib/format";
 import { ASSET_TYPE_LABELS } from "@/lib/labels";
+import type { YearSummary } from "@/domain/year";
 import type { CardChartLine, CardModel } from "./share-card";
 
 export interface ShareOptions {
@@ -220,3 +221,44 @@ export async function buildPortfolioCard(data: PortfolioData, { showAmounts }: S
     footer: footer(),
   };
 }
+
+const MONTH_INITIALS = ["E", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
+
+export async function buildYearCard(data: PortfolioData, s: YearSummary, { showAmounts }: ShareOptions): Promise<CardModel> {
+  const pct = s.change?.pct ?? null;
+  const best = s.bestBuy ? data.assets.get(s.bestBuy.transaction.assetId!) : undefined;
+  const isCurrent = String(s.year) === todayIso().slice(0, 4);
+  const stats: CardModel["stats"] = [
+    { label: "Meses aportando", value: `${s.activeMonths.length} de ${isCurrent ? Math.max(1, s.months.length) : 12}` },
+    { label: "Racha más larga", value: `${s.longestStreak} ${s.longestStreak === 1 ? "mes" : "meses"}` },
+    {
+      label: "Mejor mes",
+      value: s.bestMonth?.pct ? `${MONTHS_SHORT[s.bestMonth.month - 1]} ${formatPercent(s.bestMonth.pct)}` : "—",
+      tone: statTone(s.bestMonth?.pct),
+    },
+    {
+      label: "Mejor compra",
+      value: s.bestBuy && best ? `${best.ticker ?? best.name} ${formatPercent(s.bestBuy.gainPct)}` : "—",
+      tone: statTone(s.bestBuy?.gainPct),
+    },
+  ];
+  if (showAmounts) {
+    stats.push({ label: "Aportado", value: money(s.bought) });
+    if (s.change) stats.push({ label: "Ganancia del año", value: money(s.change.gain, true), tone: statTone(s.change.gain) });
+  }
+  return {
+    eyebrow: isCurrent ? "Mi año hasta hoy" : "Mi año",
+    title: `Mi ${s.year} en cúmulo`,
+    initials: String(s.year).slice(2),
+    hero: pct ? formatPercent(pct) : "—",
+    tone: tone(pct),
+    subtitle: `${s.buys} ${s.buys === 1 ? "compra" : "compras"} · ${s.sells} ${s.sells === 1 ? "venta" : "ventas"}`,
+    chart: s.months.length
+      ? { kind: "bars", bars: s.months.map((m) => ({ label: MONTH_INITIALS[m.month - 1], value: m.pct ? Number(m.pct.times(100).toFixed(2)) : 0 })) }
+      : undefined,
+    stats,
+    footer: footer(),
+  };
+}
+
+const MONTHS_SHORT = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sept", "oct", "nov", "dic"];

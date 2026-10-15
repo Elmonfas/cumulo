@@ -117,3 +117,13 @@ describe("periodDates", () => {
     expect(dates.length).toBeLessThan(400);
   });
 });
+
+describe("portfolioHistory — años pasados", () => {
+  it("sin currentOnLastDay el último día usa su cierre, no el precio de hoy", () => {
+    const history = [tx({ type: "buy", date: "2025-06-02", assetId: "A", quantity: "2", price: "50" })];
+    const closes = new Map([["A", [{ date: "2025-12-31", close: new Decimal("60") }]]]);
+    const current = new Map([["A", new Decimal("100")]]);
+    const [p] = portfolioHistory(history, closes, ["2025-12-31"], { currentPrices: current, currentOnLastDay: false });
+    expect(p.value.toString()).toBe("120");
+  });
+});
