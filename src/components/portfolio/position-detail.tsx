@@ -12,6 +12,7 @@ import { formatCurrency, formatDate, formatNumber, formatTime } from "@/lib/form
 import { ASSET_TYPE_LABELS } from "@/lib/labels";
 import { parseDecimal } from "@/lib/parse";
 import { setManualPrice } from "@/services/prices";
+import { AssetPriceChart } from "./asset-price-chart";
 
 const SOURCE_LABELS = { yahoo: "Yahoo Finance", coingecko: "CoinGecko", manual: "Manual" } as const;
 
@@ -55,6 +56,12 @@ export function PositionDetail({ data, assetId }: { data: PortfolioData; assetId
           </p>
         </div>
       </div>
+
+      <AssetPriceChart
+        asset={asset}
+        transactions={data.transactions.filter((t) => t.assetId === assetId)}
+        currentPrice={valuation?.price ?? null}
+      />
 
       <dl className="divide-y divide-border rounded-2xl bg-surface-2 px-4">
         {rows.map(([label, value]) => (
