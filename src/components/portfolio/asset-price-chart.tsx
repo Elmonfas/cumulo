@@ -27,7 +27,7 @@ interface Point {
   label: string;
 }
 
-const PERIODS: PeriodKey[] = ["1M", "YTD", "1Y", "ALL"];
+const PERIODS: PeriodKey[] = ["1W", "1M", "YTD", "1Y", "ALL"];
 const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sept", "oct", "nov", "dic"];
 const shortDate = (iso: string, withYear: boolean) => {
   const [y, m, d] = iso.split("-");
@@ -70,22 +70,27 @@ export function AssetPriceChart({ asset, transactions, currentPrice, averageCost
     series && series.points.length > 1 ? series.points.at(-1)!.close.div(series.points[0].close).minus(1) : null;
 
   return (
-    <div className="grid gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <PeriodSelector value={period} onChange={setPeriod} periods={PERIODS} className="w-56 max-w-full" />
-        {change && (
-          <span className="flex items-center gap-1.5 text-xs text-text-muted">
-            <VariationBadge ratio={change} />
-            precio
-          </span>
-        )}
-      </div>
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
+      <PeriodSelector value={period} onChange={setPeriod} periods={PERIODS} className="w-full sm:w-72" />
+      {change && (
+        <p className="flex items-center gap-1.5 text-xs text-text-muted">
+          <VariationBadge ratio={change} />
+          variación del precio en el periodo
+        </p>
+      )}
       {!series ? (
         <div className="h-48 animate-pulse rounded-2xl bg-surface-2 md:h-56" aria-hidden />
       ) : series.points.length < 2 ? (
         <p className="rounded-2xl bg-surface-2 px-4 py-3 text-sm text-text-muted">Aún no hay histórico de precios en este periodo.</p>
       ) : (
-        <Chart asset={asset} points={series.points} markers={series.markers} averageCost={averageCost} />
+        <Chart
+          asset={asset}
+          points={series.points}
+          markers={series.markers}
+          averageCost={averageCost}
+          // En periodos cortos la línea del precio medio no debe aplastar la curva.
+          extendToAverage={period === "1Y" || period === "ALL"}
+        />
       )}
       {histories.status === "ready" && histories.failed > 0 && (
         <p className="text-xs text-text-muted">No se pudo cargar el histórico; se muestra lo disponible.</p>
@@ -99,16 +104,25 @@ function Chart({
   points,
   markers,
   averageCost,
+  extendToAverage,
 }: {
   asset: Asset;
   points: { date: string; close: Decimal }[];
   markers: TradeMarker[];
   averageCost: Decimal | null;
+  /** Ampliar el eje para que siempre se vea la línea del precio medio. */
+  extendToAverage: boolean;
 }) {
   const data: Point[] = points.map((p) => ({ date: p.date, close: toNumber(p.close), label: formatCurrency(p.close) }));
   const markersByDate = new Map<string, TradeMarker[]>();
   for (const m of markers) markersByDate.set(m.date, [...(markersByDate.get(m.date) ?? []), m]);
   const longRange = Date.parse(data.at(-1)!.date) - Date.parse(data[0].date) > 400 * 86_400_000;
+  // Con rangos estrechos (p. ej. una semana) el formato compacto repetiría etiquetas: se usan decimales.
+  const closesNum = data.map((d) => d.close);
+  const span = Math.max(...closesNum) - Math.min(...closesNum);
+  const axisDecimals = Math.max(...closesNum) >= 1000 ? null : span < 2 ? 2 : span < 20 ? 1 : 0;
+  const axisLabel = (v: number) =>
+    axisDecimals === null ? formatCompactCurrency(String(v)) : `${formatNumber(new Decimal(String(v)), axisDecimals)} €`;
   const hasSells = markers.some((m) => m.type === "sell");
   // Cada día con operaciones se dibuja una sola vez sobre la curva.
   const dots = [...markersByDate.entries()].map(([date, list]) => ({
@@ -144,7 +158,7 @@ function Chart({
               width={60}
               domain={["auto", "auto"]}
               tick={{ fill: "var(--text-muted)", fontSize: 11 }}
-              tickFormatter={(v: number) => formatCompactCurrency(String(v))}
+              tickFormatter={axisLabel}
             />
             <Tooltip
               cursor={{ stroke: "var(--border)" }}
@@ -170,7 +184,7 @@ function Chart({
                 stroke="var(--series-2)"
                 strokeDasharray="4 4"
                 strokeWidth={1.5}
-                ifOverflow="extendDomain"
+                ifOverflow={extendToAverage ? "extendDomain" : "hidden"}
               />
             )}
             {dots.map((d) => (
