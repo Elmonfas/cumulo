@@ -20,6 +20,7 @@ import { parseDecimal } from "@/lib/parse";
 import { setManualPrice } from "@/services/prices";
 import { AssetPriceChart } from "./asset-price-chart";
 import { PriceAlerts } from "./price-alerts";
+import { WhatIfBuy } from "./what-if-buy";
 
 const SOURCE_LABELS = { yahoo: "Yahoo Finance", coingecko: "CoinGecko", manual: "Manual" } as const;
 
@@ -95,6 +96,16 @@ export function PositionDetail({ data, assetId }: { data: PortfolioData; assetId
         <p className="text-xs text-text-muted">
           Precio del {formatDate(cached.updatedAt.slice(0, 10))} a las {formatTime(cached.updatedAt)}.
         </p>
+      )}
+
+      {position.quantity.gt(0) && (
+        <WhatIfBuy
+          quantity={position.quantity}
+          cost={position.cost}
+          averageCost={position.averageCost}
+          marketPrice={valuation?.price ?? null}
+          otherValue={data.valuation.marketValue.minus(valuation?.marketValue ?? new Decimal(0))}
+        />
       )}
 
       <section aria-labelledby="asset-operations">
