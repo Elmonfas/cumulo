@@ -2,24 +2,28 @@ import Decimal from "decimal.js";
 import type { Transaction, TransactionType } from "./models";
 
 /**
- * Cartera a partir de las operaciones.
+ * Cartera de inversiones a partir de las compras y ventas.
  *
- * - Importe de una operación = cantidad × precio. Las de solo efectivo
- *   (depósito, retirada, dividendo, comisión) usan cantidad 1 y precio = importe.
+ * No hay efectivo: la cuenta real está en el bróker. Solo se registra lo que
+ * cuesta cada compra y lo que se cobra en cada venta.
+ *
+ * - Importe de una operación = cantidad × precio.
  * - Compra: el coste del lote incluye comisión e impuestos.
  * - Venta: se consumen lotes por FIFO (criterio fiscal español). Ganancia
- *   realizada = importe neto (− comisión − impuestos) − coste de los lotes
+ *   realizada = importe cobrado (− comisión − impuestos) − coste de los lotes
  *   consumidos (proporcional si un lote se consume a medias).
  * - El coste de la posición abierta es el de los lotes que quedan, y el coste
  *   medio ponderado es ese coste entre la cantidad.
  * - No se puede vender más de lo que se tiene en esa fecha.
+ * - Depósitos y retiradas (si llegan de una importación) se ignoran.
  */
 
 export interface Lot {
   transactionId: string;
   date: string;
+  /** Cantidad que queda del lote. */
   quantity: Decimal;
-  /** Coste total que queda del lote, comisiones incluidas. */
+  /** Coste que queda del lote, comisiones incluidas. */
   cost: Decimal;
 }
 
@@ -31,17 +35,33 @@ export interface Position {
   /** cost / quantity; 0 si la posición está cerrada. */
   averageCost: Decimal;
   realizedGain: Decimal;
+  /** Total cobrado por las ventas de este activo. */
+  saleProceeds: Decimal;
   lots: Lot[];
+}
+
+/** Resultado de una venta concreta. */
+export interface SaleResult {
+  transactionId: string;
+  assetId: string;
+  /** Importe cobrado, ya sin comisión ni impuestos. */
+  proceeds: Decimal;
+  /** Coste FIFO de lo vendido. */
+  cost: Decimal;
+  gain: Decimal;
 }
 
 export interface PortfolioState {
   /** Todas las posiciones con historial, incluidas las cerradas (cantidad 0). */
   positions: Map<string, Position>;
-  cash: Decimal;
-  /** Depósitos − retiradas. */
-  netDeposits: Decimal;
+  /** Suma del coste de todas las compras. */
+  bought: Decimal;
+  /** Suma de lo cobrado en todas las ventas. */
+  saleProceeds: Decimal;
   realizedGain: Decimal;
-  /** Dividendos netos y comisiones sueltas, para el cuadre de efectivo. */
+  /** Por id de la venta. */
+  sales: Map<string, SaleResult>;
+  /** Dividendos netos y comisiones sueltas, si llegan importados. */
   dividends: Decimal;
   fees: Decimal;
 }
@@ -69,7 +89,7 @@ export class InvalidTransactionError extends Error {
 }
 
 const ASSET_TYPES: TransactionType[] = ["buy", "sell"];
-/** Dentro del mismo instante: primero entra el dinero, luego compras y después ventas. */
+/** Dentro del mismo instante: primero las compras y después las ventas. */
 const SAME_DATE_ORDER: Record<TransactionType, number> = {
   deposit: 0,
   buy: 1,
@@ -82,20 +102,14 @@ const SAME_DATE_ORDER: Record<TransactionType, number> = {
 export const transactionAmount = (t: Pick<Transaction, "quantity" | "price">) =>
   new Decimal(t.quantity).times(t.price);
 
-/** Efecto de una operación en el efectivo: positivo si entra dinero. */
-export function cashEffect(t: Transaction): Decimal {
+/**
+ * Importe que se muestra de una operación: lo que costó una compra (con
+ * comisiones) o lo que se cobró en una venta (sin ellas).
+ */
+export function transactionTotal(t: Transaction): Decimal {
   const gross = transactionAmount(t);
   const charges = new Decimal(t.fee).plus(t.tax);
-  switch (t.type) {
-    case "sell":
-    case "dividend":
-    case "deposit":
-      return gross.minus(charges);
-    case "buy":
-    case "withdrawal":
-    case "fee":
-      return gross.plus(charges).negated();
-  }
+  return t.type === "sell" || t.type === "dividend" ? gross.minus(charges) : gross.plus(charges);
 }
 
 /** Orden estable para recorrer el historial. */
@@ -126,9 +140,10 @@ function validate(t: Transaction) {
 export function createPortfolioState(): PortfolioState {
   return {
     positions: new Map(),
-    cash: new Decimal(0),
-    netDeposits: new Decimal(0),
+    bought: new Decimal(0),
+    saleProceeds: new Decimal(0),
     realizedGain: new Decimal(0),
+    sales: new Map(),
     dividends: new Decimal(0),
     fees: new Decimal(0),
   };
@@ -143,6 +158,7 @@ function positionFor(state: PortfolioState, assetId: string): Position {
       cost: new Decimal(0),
       averageCost: new Decimal(0),
       realizedGain: new Decimal(0),
+      saleProceeds: new Decimal(0),
       lots: [],
     };
     state.positions.set(assetId, position);
@@ -161,23 +177,13 @@ export function applyTransaction(state: PortfolioState, t: Transaction): void {
 
   switch (t.type) {
     case "deposit":
-      state.cash = state.cash.plus(amount).minus(charges);
-      state.netDeposits = state.netDeposits.plus(amount);
-      state.fees = state.fees.plus(charges);
-      break;
     case "withdrawal":
-      state.cash = state.cash.minus(amount).minus(charges);
-      state.netDeposits = state.netDeposits.minus(amount);
-      state.fees = state.fees.plus(charges);
+      // La cuenta de efectivo vive en el bróker: no afecta a la cartera.
       break;
-    case "dividend": {
-      const net = amount.minus(charges);
-      state.cash = state.cash.plus(net);
-      state.dividends = state.dividends.plus(net);
+    case "dividend":
+      state.dividends = state.dividends.plus(amount.minus(charges));
       break;
-    }
     case "fee":
-      state.cash = state.cash.minus(amount).minus(charges);
       state.fees = state.fees.plus(amount).plus(charges);
       break;
     case "buy": {
@@ -186,7 +192,7 @@ export function applyTransaction(state: PortfolioState, t: Transaction): void {
       position.lots.push({ transactionId: t.id, date: t.date, quantity: new Decimal(t.quantity), cost });
       position.quantity = position.quantity.plus(t.quantity);
       position.cost = position.cost.plus(cost);
-      state.cash = state.cash.minus(cost);
+      state.bought = state.bought.plus(cost);
       break;
     }
     case "sell": {
@@ -215,8 +221,10 @@ export function applyTransaction(state: PortfolioState, t: Transaction): void {
       position.quantity = position.quantity.minus(t.quantity);
       position.cost = position.lots.reduce((sum, lot) => sum.plus(lot.cost), new Decimal(0));
       position.realizedGain = position.realizedGain.plus(gain);
+      position.saleProceeds = position.saleProceeds.plus(proceeds);
       state.realizedGain = state.realizedGain.plus(gain);
-      state.cash = state.cash.plus(proceeds);
+      state.saleProceeds = state.saleProceeds.plus(proceeds);
+      state.sales.set(t.id, { transactionId: t.id, assetId: t.assetId!, proceeds, cost: consumedCost, gain });
       break;
     }
   }

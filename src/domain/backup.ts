@@ -1,4 +1,4 @@
-import type { Asset, PriceCacheEntry, Settings, Transaction } from "./models";
+import type { Asset, PriceAlert, PriceCacheEntry, Settings, Transaction } from "./models";
 
 export const BACKUP_FORMAT = "cumulo-backup";
 export const BACKUP_VERSION = 1;
@@ -11,6 +11,8 @@ export interface BackupData {
   transactions: Transaction[];
   priceCache: PriceCacheEntry[];
   settings: Settings;
+  /** Desde la versión con alertas; los backups anteriores no lo traen. */
+  alerts?: PriceAlert[];
 }
 
 export class InvalidBackupError extends Error {
@@ -71,6 +73,20 @@ export function parseBackup(raw: unknown): BackupData {
   priceCache.forEach((p, i) => {
     if (!isObject(p) || !assetIds.has(p.assetId as string) || !isDecimalString(p.price) || !isString(p.updatedAt)) {
       throw new InvalidBackupError(`precio ${i + 1} incorrecto.`);
+    }
+  });
+
+  const alerts = raw.alerts ?? [];
+  if (!Array.isArray(alerts)) throw new InvalidBackupError("alertas incorrectas.");
+  alerts.forEach((a, i) => {
+    if (
+      !isObject(a) ||
+      !isString(a.id) ||
+      !assetIds.has(a.assetId as string) ||
+      (a.direction !== "above" && a.direction !== "below") ||
+      !isDecimalString(a.price)
+    ) {
+      throw new InvalidBackupError(`alerta ${i + 1} incorrecta.`);
     }
   });
 

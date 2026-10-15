@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from "dexie";
-import type { Asset, PriceCacheEntry, Settings, Transaction } from "@/domain/models";
+import type { Asset, PriceAlert, PriceCacheEntry, Settings, Transaction } from "@/domain/models";
 
 /** Fila única de ajustes; la clave fija permite un get/put sencillo. */
 export interface SettingsRow extends Settings {
@@ -11,6 +11,7 @@ export type CumuloDB = Dexie & {
   transactions: EntityTable<Transaction, "id">;
   priceCache: EntityTable<PriceCacheEntry, "assetId">;
   settings: EntityTable<SettingsRow, "id">;
+  alerts: EntityTable<PriceAlert, "id">;
 };
 
 export function createDatabase(name = "cumulo"): CumuloDB {
@@ -21,5 +22,7 @@ export function createDatabase(name = "cumulo"): CumuloDB {
     priceCache: "assetId",
     settings: "id",
   });
+  // v2: alertas de precio.
+  db.version(2).stores({ alerts: "id, assetId" });
   return db;
 }

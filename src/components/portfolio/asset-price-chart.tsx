@@ -1,10 +1,13 @@
 "use client";
 
 import Decimal from "decimal.js";
-import { useMemo } from "react";
-import { Area, AreaChart, CartesianGrid, ReferenceDot, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useMemo, useState } from "react";
+import { Area, AreaChart, CartesianGrid, ReferenceDot, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ChartTooltipPill, type TooltipRow } from "@/components/charts/chart-tooltip";
-import type { Asset, Transaction } from "@/domain/models";
+import { PeriodSelector } from "@/components/charts/period-selector";
+import { VariationBadge } from "@/components/variation-badge";
+import { addDays, periodStart } from "@/domain/history";
+import type { Asset, PeriodKey, Transaction } from "@/domain/models";
 import { priceSeriesWithTrades, type TradeMarker } from "@/domain/trade-markers";
 import { usePriceHistories } from "@/hooks/use-price-histories";
 import { formatCompactCurrency, formatCurrency, formatDate, formatNumber, todayIso } from "@/lib/format";
@@ -13,6 +16,8 @@ interface AssetPriceChartProps {
   asset: Asset;
   transactions: Transaction[];
   currentPrice: Decimal | null;
+  /** Precio medio de compra de la posición abierta; null si está cerrada. */
+  averageCost: Decimal | null;
 }
 
 interface Point {
@@ -22,54 +27,100 @@ interface Point {
   label: string;
 }
 
+const PERIODS: PeriodKey[] = ["1M", "YTD", "1Y", "ALL"];
 const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sept", "oct", "nov", "dic"];
 const shortDate = (iso: string, withYear: boolean) => {
   const [y, m, d] = iso.split("-");
   return withYear ? `${MONTHS[Number(m) - 1]} ${y.slice(2)}` : `${Number(d)} ${MONTHS[Number(m) - 1]}`;
 };
-
+const toNumber = (d: Decimal) => Number(d.toFixed(6));
 const tradeLabel = (m: TradeMarker) =>
   `${formatNumber(m.quantity, Math.min(8, m.quantity.decimalPlaces()))} × ${formatCurrency(m.price)}`;
 
-/** Precio del activo desde la primera operación, con un punto en cada compra y venta. */
-export function AssetPriceChart({ asset, transactions, currentPrice }: AssetPriceChartProps) {
+/**
+ * Precio del activo con un punto sobre la curva en cada compra y venta, y la
+ * línea del precio medio de compra para ver de un vistazo si vas en positivo.
+ */
+export function AssetPriceChart({ asset, transactions, currentPrice, averageCost }: AssetPriceChartProps) {
+  const [period, setPeriod] = useState<PeriodKey>("ALL");
+  const today = todayIso();
   const trades = useMemo(() => transactions.filter((t) => t.type === "buy" || t.type === "sell"), [transactions]);
-  const from = useMemo(() => {
-    const first = trades.map((t) => t.date.slice(0, 10)).sort()[0] ?? todayIso();
-    const d = new Date(`${first}T00:00:00Z`);
-    d.setUTCDate(d.getUTCDate() - 7);
-    return d.toISOString().slice(0, 10);
-  }, [trades]);
+  const firstTrade = useMemo(() => trades.map((t) => t.date.slice(0, 10)).sort()[0] ?? today, [trades, today]);
+
+  // Un único histórico que cubre todos los periodos; luego se recorta.
+  const fetchFrom = useMemo(() => {
+    const yearAgo = addDays(today, -366);
+    return addDays(firstTrade < yearAgo ? firstTrade : yearAgo, -7);
+  }, [firstTrade, today]);
   const assets = useMemo(() => [asset], [asset]);
-  const histories = usePriceHistories(assets, asset.priceSource === "manual" ? null : from);
+  const histories = usePriceHistories(assets, asset.priceSource === "manual" ? null : fetchFrom);
 
   const series = useMemo(() => {
     if (histories.status !== "ready") return null;
+    const start = period === "ALL" ? firstTrade : periodStart(period, today, firstTrade);
     const closes = histories.closes.get(asset.id) ?? [];
-    return priceSeriesWithTrades(closes, trades, currentPrice ? { date: todayIso(), price: currentPrice } : undefined);
-  }, [histories, asset.id, trades, currentPrice]);
+    return priceSeriesWithTrades(closes, trades, currentPrice ? { date: today, price: currentPrice } : undefined, start);
+  }, [histories, asset.id, trades, currentPrice, period, firstTrade, today]);
 
   if (asset.priceSource === "manual") {
     return <p className="rounded-2xl bg-surface-2 px-4 py-3 text-sm text-text-muted">Sin histórico: este activo tiene precio manual.</p>;
   }
-  if (!series) return <div className="h-48 animate-pulse rounded-2xl bg-surface-2" aria-hidden />;
-  if (series.points.length < 2) {
-    return <p className="rounded-2xl bg-surface-2 px-4 py-3 text-sm text-text-muted">Aún no hay histórico de precios para este activo.</p>;
-  }
 
-  const data: Point[] = series.points.map((p) => ({ date: p.date, close: Number(p.close.toFixed(6)), label: formatCurrency(p.close) }));
+  const change =
+    series && series.points.length > 1 ? series.points.at(-1)!.close.div(series.points[0].close).minus(1) : null;
+
+  return (
+    <div className="grid gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <PeriodSelector value={period} onChange={setPeriod} periods={PERIODS} className="w-56 max-w-full" />
+        {change && (
+          <span className="flex items-center gap-1.5 text-xs text-text-muted">
+            <VariationBadge ratio={change} />
+            precio
+          </span>
+        )}
+      </div>
+      {!series ? (
+        <div className="h-48 animate-pulse rounded-2xl bg-surface-2 md:h-56" aria-hidden />
+      ) : series.points.length < 2 ? (
+        <p className="rounded-2xl bg-surface-2 px-4 py-3 text-sm text-text-muted">Aún no hay histórico de precios en este periodo.</p>
+      ) : (
+        <Chart asset={asset} points={series.points} markers={series.markers} averageCost={averageCost} />
+      )}
+      {histories.status === "ready" && histories.failed > 0 && (
+        <p className="text-xs text-text-muted">No se pudo cargar el histórico; se muestra lo disponible.</p>
+      )}
+    </div>
+  );
+}
+
+function Chart({
+  asset,
+  points,
+  markers,
+  averageCost,
+}: {
+  asset: Asset;
+  points: { date: string; close: Decimal }[];
+  markers: TradeMarker[];
+  averageCost: Decimal | null;
+}) {
+  const data: Point[] = points.map((p) => ({ date: p.date, close: toNumber(p.close), label: formatCurrency(p.close) }));
   const markersByDate = new Map<string, TradeMarker[]>();
-  for (const m of series.markers) markersByDate.set(m.date, [...(markersByDate.get(m.date) ?? []), m]);
+  for (const m of markers) markersByDate.set(m.date, [...(markersByDate.get(m.date) ?? []), m]);
   const longRange = Date.parse(data.at(-1)!.date) - Date.parse(data[0].date) > 400 * 86_400_000;
-  const hasSells = series.markers.some((m) => m.type === "sell");
+  const hasSells = markers.some((m) => m.type === "sell");
+  // Cada día con operaciones se dibuja una sola vez sobre la curva.
+  const dots = [...markersByDate.entries()].map(([date, list]) => ({
+    date,
+    close: toNumber(list[0].close),
+    hasBuy: list.some((m) => m.type === "buy"),
+    hasSell: list.some((m) => m.type === "sell"),
+  }));
 
   return (
     <div>
-      <div
-        className="h-48 w-full md:h-56"
-        role="img"
-        aria-label={`Precio de ${asset.name} con ${series.markers.length} operaciones marcadas`}
-      >
+      <div className="h-48 w-full md:h-56" role="img" aria-label={`Precio de ${asset.name} con ${markers.length} operaciones marcadas`}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 10, right: 12, bottom: 0, left: 0 }}>
             <defs>
@@ -100,7 +151,7 @@ export function AssetPriceChart({ asset, transactions, currentPrice }: AssetPric
               content={({ active, payload }) => {
                 const point = active ? (payload?.[0]?.payload as Point | undefined) : undefined;
                 if (!point) return null;
-                const rows: TooltipRow[] = [{ label: "Precio", value: point.label }];
+                const rows: TooltipRow[] = [{ label: "Cierre", value: point.label }];
                 for (const m of markersByDate.get(point.date) ?? []) {
                   rows.push({
                     label: m.type === "buy" ? "Compra" : "Venta",
@@ -108,20 +159,29 @@ export function AssetPriceChart({ asset, transactions, currentPrice }: AssetPric
                     dotClassName: m.type === "buy" ? "bg-accent" : "bg-series-2",
                   });
                 }
+                if (averageCost) rows.push({ label: "Tu precio medio", value: formatCurrency(averageCost) });
                 return <ChartTooltipPill title={formatDate(point.date)} rows={rows} />;
               }}
             />
             <Area type="monotone" dataKey="close" stroke="var(--accent)" strokeWidth={2} fill="url(#fill-asset-price)" animationDuration={200} />
-            {series.markers.map((m) => (
+            {averageCost && (
+              <ReferenceLine
+                y={toNumber(averageCost)}
+                stroke="var(--series-2)"
+                strokeDasharray="4 4"
+                strokeWidth={1.5}
+                ifOverflow="extendDomain"
+              />
+            )}
+            {dots.map((d) => (
               <ReferenceDot
-                key={m.transactionId}
-                x={m.date}
-                y={Number(m.price.toFixed(6))}
-                r={5}
-                fill={m.type === "buy" ? "var(--accent)" : "var(--series-2)"}
+                key={d.date}
+                x={d.date}
+                y={d.close}
+                r={5.5}
+                fill={d.hasSell && !d.hasBuy ? "var(--series-2)" : "var(--accent)"}
                 stroke="var(--surface)"
                 strokeWidth={2}
-                ifOverflow="extendDomain"
               />
             ))}
           </AreaChart>
@@ -138,11 +198,13 @@ export function AssetPriceChart({ asset, transactions, currentPrice }: AssetPric
             Venta
           </li>
         )}
-        <li>Puntos al precio de cada operación</li>
+        {averageCost && (
+          <li className="flex items-center gap-1.5">
+            <span className="h-0 w-4 border-t-[1.5px] border-dashed border-series-2" aria-hidden />
+            Tu precio medio · {formatCurrency(averageCost)}
+          </li>
+        )}
       </ul>
-      {histories.status === "ready" && histories.failed > 0 && (
-        <p className="mt-1 text-xs text-text-muted">No se pudo cargar el histórico; se muestra lo disponible.</p>
-      )}
     </div>
   );
 }

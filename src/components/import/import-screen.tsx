@@ -22,7 +22,7 @@ type Step =
   | { name: "importing"; preview: ImportPreview; fileName: string }
   | { name: "done"; imported: number };
 
-const TYPE_ORDER: TransactionType[] = ["deposit", "withdrawal", "buy", "sell", "dividend", "fee"];
+const TYPE_ORDER: TransactionType[] = ["buy", "sell", "dividend", "fee"];
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 export function ImportScreen() {
@@ -194,7 +194,7 @@ function PreviewStep({
           <p className="mt-1 text-sm text-text-muted">{preview.duplicateCount} ya estaban importadas y se omitirán.</p>
         )}
         {preview.parsed.skipped.length > 0 && (
-          <p className="mt-1 text-sm text-text-muted">{preview.parsed.skipped.length} filas no se importan (tipo no soportado).</p>
+          <p className="mt-1 text-sm text-text-muted">{preview.parsed.skipped.length} filas no se importan (depósitos, retiradas u otros movimientos que no son de la cartera).</p>
         )}
 
         {types.length > 0 && (
@@ -207,10 +207,6 @@ function PreviewStep({
                 <dd className="mt-1 font-medium tabular-nums">{formatCurrency(preview.totals[type]!.amount)}</dd>
               </div>
             ))}
-            <div className="rounded-2xl bg-surface-2 p-3.5">
-              <dt className="text-xs text-text-muted">Efectivo</dt>
-              <dd className="mt-1 font-medium tabular-nums">{formatCurrency(preview.cashChange, { signed: true })}</dd>
-            </div>
           </dl>
         )}
       </Card>

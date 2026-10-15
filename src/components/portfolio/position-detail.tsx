@@ -8,11 +8,18 @@ import { DecimalField } from "@/components/ui/decimal-field";
 import { VariationAmount, VariationBadge } from "@/components/variation-badge";
 import { getRepositories } from "@/data/repositories";
 import type { PortfolioData } from "@/hooks/use-portfolio";
-import { formatCurrency, formatDate, formatNumber, formatTime } from "@/lib/format";
-import { ASSET_TYPE_LABELS } from "@/lib/labels";
+import { OperationDetail } from "@/components/operation-detail";
+import type { Transaction } from "@/domain/models";
+import { annualReturn, buyDetail, sellDetail } from "@/domain/performance";
+import { sortTransactions } from "@/domain/portfolio";
+import { formatCurrency, formatDate, formatNumber, formatPercent, formatTime, todayIso } from "@/lib/format";
+import { ASSET_TYPE_LABELS, TRANSACTION_TYPE_LABELS } from "@/lib/labels";
+import { cn } from "@/lib/utils";
+import { ChevronDown } from "lucide-react";
 import { parseDecimal } from "@/lib/parse";
 import { setManualPrice } from "@/services/prices";
 import { AssetPriceChart } from "./asset-price-chart";
+import { PriceAlerts } from "./price-alerts";
 
 const SOURCE_LABELS = { yahoo: "Yahoo Finance", coingecko: "CoinGecko", manual: "Manual" } as const;
 
@@ -22,6 +29,8 @@ export function PositionDetail({ data, assetId }: { data: PortfolioData; assetId
   const position = valuation?.position ?? data.state.positions.get(assetId);
   const cached = data.prices.get(assetId);
   if (!asset || !position) return <p className="text-sm text-text-muted">Esta posición ya no existe.</p>;
+  const assetTransactions = sortTransactions(data.transactions.filter((t) => t.assetId === assetId));
+  const annual = annualReturn(assetTransactions, valuation?.marketValue ?? new Decimal(0), todayIso());
 
   const rows: [string, React.ReactNode][] = [
     ["Cantidad", formatNumber(position.quantity, Math.min(8, position.quantity.decimalPlaces()))],
@@ -41,6 +50,15 @@ export function PositionDetail({ data, assetId }: { data: PortfolioData; assetId
       ),
     ],
     ["Realizado", <VariationAmount key="r" value={position.realizedGain} format={(v) => formatCurrency(v, { signed: true })} />],
+    ["Cobrado en ventas", formatCurrency(position.saleProceeds)],
+    [
+      "Rentabilidad anual (TIR)",
+      annual ? (
+        <VariationAmount key="a" value={annual} format={(v) => formatPercent(v)} />
+      ) : (
+        <span key="a" className="text-text-muted">Menos de 1 año</span>
+      ),
+    ],
   ];
 
   return (
@@ -59,8 +77,9 @@ export function PositionDetail({ data, assetId }: { data: PortfolioData; assetId
 
       <AssetPriceChart
         asset={asset}
-        transactions={data.transactions.filter((t) => t.assetId === assetId)}
+        transactions={assetTransactions}
         currentPrice={valuation?.price ?? null}
+        averageCost={position.quantity.gt(0) ? position.averageCost : null}
       />
 
       <dl className="divide-y divide-border rounded-2xl bg-surface-2 px-4">
@@ -78,9 +97,52 @@ export function PositionDetail({ data, assetId }: { data: PortfolioData; assetId
         </p>
       )}
 
+      <section aria-labelledby="asset-operations">
+        <h3 id="asset-operations" className="mb-2 text-sm font-medium">
+          Tus operaciones · {assetTransactions.length}
+        </h3>
+        <ul className="grid gap-2">
+          {[...assetTransactions].reverse().map((t) => (
+            <li key={t.id}>
+              <details className="group rounded-2xl border border-border">
+                <summary className="flex cursor-pointer list-none items-center gap-3 rounded-2xl px-3.5 py-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-accent/40 [&::-webkit-details-marker]:hidden">
+                  <span className={cn("size-2.5 shrink-0 rounded-full", t.type === "sell" ? "bg-series-2" : "bg-accent")} aria-hidden />
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-medium">
+                      {TRANSACTION_TYPE_LABELS[t.type]} · {formatDate(t.date)}
+                    </span>
+                    <span className="block truncate text-xs text-text-muted tabular-nums">
+                      {formatNumber(new Decimal(t.quantity), Math.min(8, new Decimal(t.quantity).decimalPlaces()))} ×{" "}
+                      {formatCurrency(t.price)}
+                    </span>
+                  </span>
+                  <OperationBadge transaction={t} data={data} price={valuation?.price ?? null} />
+                  <ChevronDown className="size-4 shrink-0 text-text-muted transition-transform group-open:rotate-180" aria-hidden />
+                </summary>
+                <div className="px-2 pb-2">
+                  <OperationDetail transaction={t} state={data.state} price={valuation?.price ?? null} />
+                </div>
+              </details>
+            </li>
+          ))}
+        </ul>
+      </section>
+
       {asset.priceSource === "manual" && <ManualPriceForm assetId={assetId} current={cached?.price} />}
+
+      {position.quantity.gt(0) && <PriceAlerts assetId={assetId} currentPrice={cached?.price ?? null} />}
     </div>
   );
+}
+
+/** Variación de una compra (lo que queda de ella) o de una venta, para la lista. */
+function OperationBadge({ transaction: t, data, price }: { transaction: Transaction; data: PortfolioData; price: Decimal | null }) {
+  if (t.type === "buy") {
+    const d = buyDetail(data.state, t, price, todayIso());
+    return d.remainingQuantity.isZero() ? <span className="text-xs text-text-muted">Vendida</span> : <VariationBadge ratio={d.gainPct} />;
+  }
+  if (t.type === "sell") return <VariationBadge ratio={sellDetail(data.state, t)?.gainPct ?? null} />;
+  return null;
 }
 
 function ManualPriceForm({ assetId, current }: { assetId: string; current?: string }) {

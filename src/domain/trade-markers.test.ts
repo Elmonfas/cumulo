@@ -26,9 +26,9 @@ describe("priceSeriesWithTrades", () => {
       trade("s1", "sell", "2026-10-06T14:30:00Z", "4", "104.2"),
     ]);
     expect(points.map((p) => p.date)).toEqual(["2026-10-02", "2026-10-05", "2026-10-06"]);
-    expect(markers.map((m) => [m.transactionId, m.type, m.date, m.price.toString()])).toEqual([
-      ["b1", "buy", "2026-10-02", "99.5"],
-      ["s1", "sell", "2026-10-06", "104.2"],
+    expect(markers.map((m) => [m.transactionId, m.type, m.date, m.price.toString(), m.close.toString()])).toEqual([
+      ["b1", "buy", "2026-10-02", "99.5", "100"],
+      ["s1", "sell", "2026-10-06", "104.2", "104"],
     ]);
   });
 
@@ -50,6 +50,17 @@ describe("priceSeriesWithTrades", () => {
     const { points } = priceSeriesWithTrades(closes, [], { date: "2026-10-06", price: new Decimal("103") });
     expect(points).toHaveLength(3);
     expect(points.at(-1)!.close.toString()).toBe("103");
+  });
+
+  it("con `from` recorta la serie y omite operaciones anteriores", () => {
+    const { points, markers } = priceSeriesWithTrades(
+      closes,
+      [trade("old", "buy", "2026-10-02", "1", "100"), trade("new", "buy", "2026-10-06", "1", "104")],
+      undefined,
+      "2026-10-05",
+    );
+    expect(points.map((p) => p.date)).toEqual(["2026-10-05", "2026-10-06"]);
+    expect(markers.map((m) => m.transactionId)).toEqual(["new"]);
   });
 
   it("ignora operaciones que no son compra o venta y series vacías", () => {

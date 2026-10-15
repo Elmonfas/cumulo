@@ -6,8 +6,8 @@ import { openPositions, type PortfolioState, type Position } from "./portfolio";
  *
  * - Valor de mercado = cantidad × precio de cada posición con precio.
  * - No realizado = valor de mercado − coste de las posiciones abiertas.
- * - Si el historial registra depósitos, el patrimonio incluye el efectivo
- *   (como lo muestra el bróker); si no, es solo el valor de las posiciones.
+ * - El valor de la cartera es solo el de las posiciones abiertas: el
+ *   efectivo vive en el bróker. Lo cobrado en ventas se muestra aparte.
  * - Una posición sin precio no suma valor ni plusvalía: se cuenta aparte.
  */
 
@@ -32,9 +32,9 @@ export interface PortfolioValuation {
   unrealized: Decimal;
   unrealizedPct: Decimal | null;
   realized: Decimal;
-  cash: Decimal;
-  tracksCash: boolean;
-  /** Patrimonio: valor de mercado (+ efectivo si se registra). */
+  /** Total cobrado en ventas. */
+  saleProceeds: Decimal;
+  /** Valor de la cartera: valor de mercado de las posiciones abiertas. */
   totalValue: Decimal;
   /** No realizado + realizado + dividendos − comisiones sueltas. */
   totalGain: Decimal;
@@ -73,7 +73,6 @@ export function valuePortfolio(state: PortfolioState, prices: ReadonlyMap<string
     .sort((a, b) => (b.marketValue ?? b.position.cost).comparedTo(a.marketValue ?? a.position.cost));
 
   const unrealized = marketValue.minus(pricedCost);
-  const tracksCash = state.netDeposits.gt(0);
   return {
     positions,
     invested,
@@ -82,9 +81,8 @@ export function valuePortfolio(state: PortfolioState, prices: ReadonlyMap<string
     unrealized,
     unrealizedPct: pricedCost.isZero() ? null : unrealized.div(pricedCost),
     realized: state.realizedGain,
-    cash: state.cash,
-    tracksCash,
-    totalValue: tracksCash ? marketValue.plus(state.cash) : marketValue,
+    saleProceeds: state.saleProceeds,
+    totalValue: marketValue,
     totalGain: unrealized.plus(state.realizedGain).plus(state.dividends).minus(state.fees),
     missingPrices,
   };

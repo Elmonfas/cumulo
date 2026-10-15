@@ -1,5 +1,5 @@
 import type { BackupData } from "@/domain/backup";
-import type { Asset, PriceCacheEntry, PriceSource, Settings, Transaction } from "@/domain/models";
+import type { Asset, PriceAlert, PriceCacheEntry, PriceSource, Settings, Transaction } from "@/domain/models";
 
 /**
  * Contratos de acceso a datos. La UI solo conoce estas interfaces; hoy las
@@ -39,6 +39,14 @@ export interface SettingsRepository {
   update(changes: Partial<Settings>): Promise<Settings>;
 }
 
+export interface AlertRepository {
+  list(): Promise<PriceAlert[]>;
+  listByAsset(assetId: string): Promise<PriceAlert[]>;
+  add(alert: Omit<PriceAlert, "id" | "createdAt">): Promise<PriceAlert>;
+  markTriggered(id: string, price: string, at: string): Promise<void>;
+  remove(id: string): Promise<void>;
+}
+
 export interface BackupRepository {
   exportAll(): Promise<BackupData>;
   /** Sustituye todos los datos por los del backup, de forma atómica. */
@@ -50,5 +58,6 @@ export interface Repositories {
   transactions: TransactionRepository;
   priceCache: PriceCacheRepository;
   settings: SettingsRepository;
+  alerts: AlertRepository;
   backup: BackupRepository;
 }

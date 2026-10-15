@@ -39,18 +39,11 @@ describe("valuePortfolio", () => {
     expect(v.positions[1].unrealizedPct!.toString()).toBe("-0.2");
   });
 
-  it("sin depósitos registrados el patrimonio es el valor de las posiciones", () => {
-    const v = valuePortfolio(buildPortfolio(history), prices({ A: "110", B: "40" }));
-    expect(v.tracksCash).toBe(false);
+  it("el valor es solo el de las posiciones, aunque haya depósitos importados", () => {
+    const withDeposit = [tx({ type: "deposit", date: "2025-12-31", price: "2000" }), ...history];
+    const v = valuePortfolio(buildPortfolio(withDeposit), prices({ A: "110", B: "40" }));
     expect(v.totalValue.toString()).toBe("1140");
-  });
-
-  it("con depósitos el patrimonio suma el efectivo", () => {
-    const withCash = [tx({ type: "deposit", date: "2025-12-31", price: "2000" }), ...history];
-    const v = valuePortfolio(buildPortfolio(withCash), prices({ A: "110", B: "40" }));
-    // Efectivo: 2.000 − 1.001 − 100 + 70 = 969. Patrimonio 1.140 + 969.
-    expect(v.cash.toString()).toBe("969");
-    expect(v.totalValue.toString()).toBe("2109");
+    expect(v.saleProceeds.toString()).toBe("70");
   });
 
   it("un activo sin precio no rompe la valoración", () => {

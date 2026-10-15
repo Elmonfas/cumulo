@@ -4,7 +4,7 @@ import Decimal from "decimal.js";
 import { ChevronRight, PieChart, RefreshCw } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AnimatedAmount } from "@/components/animated-amount";
 import { AssetAvatar } from "@/components/asset-avatar";
 import { EmptyState } from "@/components/empty-state";
@@ -15,7 +15,8 @@ import { Sheet } from "@/components/ui/sheet";
 import { VariationAmount, VariationBadge } from "@/components/variation-badge";
 import type { PositionValuation } from "@/domain/valuation";
 import { usePortfolio, type PortfolioData } from "@/hooks/use-portfolio";
-import { formatCurrency, formatNumber, formatPercent } from "@/lib/format";
+import { formatCurrency, formatNumber, formatPercent, todayIso } from "@/lib/format";
+import { annualReturn } from "@/domain/performance";
 import { ASSET_TYPE_LABELS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 
@@ -82,13 +83,14 @@ function PortfolioContent({
   onSelect: (assetId: string) => void;
 }) {
   const v = data.valuation;
+  const annual = useMemo(() => annualReturn(data.transactions, v.totalValue, todayIso()), [data.transactions, v.totalValue]);
   const closed = [...data.state.positions.values()].filter((p) => p.quantity.isZero());
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:gap-5">
       <Card>
         <div className="flex items-start justify-between gap-3">
-          <p className="text-sm text-text-muted">{v.tracksCash ? "Patrimonio" : "Valor de la cartera"}</p>
+          <p className="text-sm text-text-muted">Valor de la cartera</p>
           <Button variant="ghost" size="icon-sm" onClick={onRefresh} disabled={refreshing} aria-label="Actualizar precios">
             <RefreshCw className={cn(refreshing && "animate-spin")} aria-hidden />
           </Button>
@@ -104,11 +106,21 @@ function PortfolioContent({
         <QuoteFreshness oldest={data.oldestQuote} failed={failedIds.length} missing={v.missingPrices} className="mt-3" />
       </Card>
 
-      <dl className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-5">
-        <Stat label="Invertido" value={formatCurrency(v.invested)} />
-        <Stat label="Valor de mercado" value={formatCurrency(v.marketValue)} />
-        <Stat label="Realizado" value={<VariationAmount value={v.realized} format={signedCurrency} />} />
-        <Stat label="Efectivo" value={v.tracksCash ? formatCurrency(v.cash) : "—"} hint={v.tracksCash ? undefined : "Sin depósitos"} />
+      <dl className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-5">
+        <Stat label="Invertido ahora" value={formatCurrency(v.invested)} hint="Coste de lo que tienes" />
+        <Stat label="Ganancia total" value={<VariationAmount value={v.totalGain} format={signedCurrency} />} hint="No realizado + realizado" />
+        <Stat label="Cobrado en ventas" value={formatCurrency(v.saleProceeds)} />
+        <Stat label="Realizado" value={<VariationAmount value={v.realized} format={signedCurrency} />} hint="Ganancia de lo vendido" />
+        <Stat
+          label="Rentabilidad total"
+          value={data.state.bought.gt(0) ? <VariationAmount value={v.totalGain.div(data.state.bought)} format={(r) => formatPercent(r)} /> : "—"}
+          hint="Ganancia / total comprado"
+        />
+        <Stat
+          label="Rentabilidad anual"
+          value={annual ? <VariationAmount value={annual} format={(r) => formatPercent(r)} /> : "—"}
+          hint={annual ? "TIR" : "TIR · menos de 1 año"}
+        />
       </dl>
 
       {v.positions.length > 0 && (

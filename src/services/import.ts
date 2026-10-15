@@ -1,7 +1,8 @@
 import Decimal from "decimal.js";
 import type { Repositories } from "@/data/repositories";
 import type { Asset, Transaction, TransactionType } from "@/domain/models";
-import { cashEffect, checkTransactions } from "@/domain/portfolio";
+import { checkTransactions, transactionTotal } from "@/domain/portfolio";
+import { CASH_TRANSACTION_TYPES } from "@/lib/labels";
 import type { ImportedAssetRef, ImportedTransaction, ParsedImport } from "@/importers/types";
 import type { AssetCandidate, AssetSearchResponse } from "@/prices/types";
 import { createManualAsset, ensureAsset } from "./transactions";
@@ -24,15 +25,20 @@ export interface ImportPreview {
   duplicateCount: number;
   /** Solo filas nuevas. */
   totals: Partial<Record<TransactionType, { count: number; amount: Decimal }>>;
-  /** Variación de efectivo de las filas nuevas. */
-  cashChange: Decimal;
   /** Problema de coherencia al sumar las filas nuevas al historial (venta sin compra…). */
   problem: string | null;
 }
 
 const assetKey = (ref: ImportedAssetRef) => (ref.isin ? `isin:${ref.isin.toUpperCase()}` : `name:${ref.name.toLowerCase()}`);
 
-export async function prepareImport(repositories: Repositories, parsed: ParsedImport): Promise<ImportPreview> {
+export async function prepareImport(repositories: Repositories, input: ParsedImport): Promise<ImportPreview> {
+  // Depósitos y retiradas no se importan: el efectivo vive en el bróker.
+  const cashRows = input.transactions.filter((t) => CASH_TRANSACTION_TYPES.includes(t.type));
+  const parsed: ParsedImport = {
+    ...input,
+    transactions: input.transactions.filter((t) => !CASH_TRANSACTION_TYPES.includes(t.type)),
+    skipped: [...input.skipped, ...cashRows.map((t) => ({ line: t.line, reason: "Movimiento de efectivo" }))],
+  };
   const [existing, assets] = await Promise.all([repositories.transactions.list(), repositories.assets.list()]);
   const existingHashes = await repositories.transactions.existingImportHashes(parsed.transactions.map((t) => t.importHash));
 
@@ -45,13 +51,10 @@ export async function prepareImport(repositories: Repositories, parsed: ParsedIm
   const fresh = rows.filter((r) => !r.duplicate).map((r) => r.transaction);
 
   const totals: ImportPreview["totals"] = {};
-  let cashChange = new Decimal(0);
   for (const t of fresh) {
     const entry = (totals[t.type] ??= { count: 0, amount: new Decimal(0) });
-    const effect = cashEffect({ ...t, id: "", origin: "csv-tr" });
     entry.count++;
-    entry.amount = entry.amount.plus(effect.abs());
-    cashChange = cashChange.plus(effect);
+    entry.amount = entry.amount.plus(transactionTotal({ ...t, id: "", origin: "csv-tr" }));
   }
 
   // Validación con activos provisionales: el mismo ISIN que un activo existente se une a él.
@@ -78,7 +81,6 @@ export async function prepareImport(repositories: Repositories, parsed: ParsedIm
     newCount: fresh.length,
     duplicateCount: rows.length - fresh.length,
     totals,
-    cashChange,
     problem,
   };
 }

@@ -47,6 +47,7 @@ export function withChangeEvents(repositories: Repositories): Repositories {
     transactions: wrap(repositories.transactions),
     priceCache: wrap(repositories.priceCache),
     settings: wrap(repositories.settings),
+    alerts: wrap(repositories.alerts),
     backup: wrap(repositories.backup),
   };
 }

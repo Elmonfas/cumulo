@@ -5,13 +5,25 @@ import { PERIODS, type PeriodKey } from "@/domain/models";
 import { cn } from "@/lib/utils";
 
 /** Selector de periodo en píldora: 1D · 1S · 1M · YTD · 1A · Todo. */
-export function PeriodSelector({ value, onChange, className }: { value: PeriodKey; onChange: (p: PeriodKey) => void; className?: string }) {
+export function PeriodSelector({
+  value,
+  onChange,
+  className,
+  periods = PERIODS.map((p) => p.key),
+}: {
+  value: PeriodKey;
+  onChange: (p: PeriodKey) => void;
+  className?: string;
+  /** Subconjunto de periodos a ofrecer (por defecto, todos). */
+  periods?: PeriodKey[];
+}) {
+  const options = PERIODS.filter((p) => periods.includes(p.key));
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
     if (!step) return;
     event.preventDefault();
-    const index = PERIODS.findIndex((p) => p.key === value);
-    const next = PERIODS[(index + step + PERIODS.length) % PERIODS.length];
+    const index = options.findIndex((p) => p.key === value);
+    const next = options[(index + step + options.length) % options.length];
     onChange(next.key);
     (event.currentTarget.querySelector(`[data-period="${next.key}"]`) as HTMLButtonElement | null)?.focus();
   }
@@ -21,9 +33,10 @@ export function PeriodSelector({ value, onChange, className }: { value: PeriodKe
       role="radiogroup"
       aria-label="Periodo"
       onKeyDown={onKeyDown}
-      className={cn("grid grid-cols-6 gap-0.5 rounded-full bg-surface-2 p-1", className)}
+      style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
+      className={cn("grid gap-0.5 rounded-full bg-surface-2 p-1", className)}
     >
-      {PERIODS.map((p) => {
+      {options.map((p) => {
         const checked = p.key === value;
         return (
           <button

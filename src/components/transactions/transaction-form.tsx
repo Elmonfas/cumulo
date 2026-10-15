@@ -72,7 +72,7 @@ export function TransactionForm({ transaction, asset: initialAsset = null, onDon
     if (Object.keys(errors).length === 0) {
       const gross = forAsset ? q!.times(p!) : a!;
       const charges = f!.plus(t!);
-      total = type === "sell" || type === "deposit" ? gross.minus(charges) : gross.plus(charges);
+      total = type === "sell" || type === "dividend" ? gross.minus(charges) : gross.plus(charges);
     }
     const draft: TransactionDraft | null =
       Object.keys(errors).length === 0
@@ -132,14 +132,14 @@ export function TransactionForm({ transaction, asset: initialAsset = null, onDon
     }
   }
 
-  const totalLabel = type === "sell" ? "Recibes" : type === "deposit" ? "Entra en cuenta" : type === "withdrawal" ? "Sale de la cuenta" : "Total";
+  const totalLabel = type === "sell" ? "Cobras" : type === "buy" ? "Pagas" : "Importe neto";
 
   return (
     <form id="transaction-form" onSubmit={onSubmit} className="grid grid-cols-[minmax(0,1fr)] gap-4 pt-1" noValidate>
       <div
         role="radiogroup"
         aria-label="Tipo de operación"
-        className={cn("grid gap-1 rounded-full border border-border bg-surface-2 p-1", types.length > 1 ? "grid-cols-4" : "grid-cols-1")}
+        className={cn("grid gap-1 rounded-full border border-border bg-surface-2 p-1", types.length > 1 ? "grid-cols-2" : "grid-cols-1")}
       >
         {types.map((t) => (
           <button

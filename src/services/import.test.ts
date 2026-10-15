@@ -47,31 +47,33 @@ describe("importación", () => {
 
   it("calcula totales y efectivo de la vista previa", async () => {
     const preview = await prepareImport(repos, await sampleFile());
-    expect(preview.newCount).toBe(4);
+    // El depósito no se importa: queda como fila omitida.
+    expect(preview.newCount).toBe(3);
+    expect(preview.parsed.skipped).toEqual([{ line: 2, reason: "Movimiento de efectivo" }]);
     expect(preview.duplicateCount).toBe(0);
     expect(preview.totals.buy).toMatchObject({ count: 2 });
     expect(preview.totals.buy!.amount.toString()).toBe("402");
-    // 1.000 − 201 − 201 + 119 = 717
-    expect(preview.cashChange.toString()).toBe("717");
+    expect(preview.totals.sell!.amount.toString()).toBe("119");
+    expect(preview.totals.deposit).toBeUndefined();
     expect(preview.problem).toBeNull();
   });
 
   it("importa, crea el activo por ISIN y reimportar no duplica nada", async () => {
     const file = await sampleFile();
-    expect(await commitImport(repos, await prepareImport(repos, file), search)).toEqual({ imported: 4 });
+    expect(await commitImport(repos, await prepareImport(repos, file), search)).toEqual({ imported: 3 });
 
     const assets = await repos.assets.list();
     expect(assets).toHaveLength(1);
     expect(assets[0]).toMatchObject({ isin: "IE00BK5BQT80", priceSource: "yahoo", priceSourceId: "VWCE.DE" });
     const stored = await repos.transactions.list();
-    expect(stored).toHaveLength(4);
+    expect(stored).toHaveLength(3);
     expect(stored.every((t) => t.origin === "csv-tr" && t.importHash)).toBe(true);
 
     const again = await prepareImport(repos, await sampleFile());
     expect(again.newCount).toBe(0);
-    expect(again.duplicateCount).toBe(4);
+    expect(again.duplicateCount).toBe(3);
     expect(await commitImport(repos, again, search)).toEqual({ imported: 0 });
-    expect(await repos.transactions.list()).toHaveLength(4);
+    expect(await repos.transactions.list()).toHaveLength(3);
   });
 
   it("detecta ventas sin respaldo antes de importar", async () => {

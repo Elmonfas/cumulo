@@ -1,6 +1,6 @@
 import Decimal from "decimal.js";
 import { describe, expect, it } from "vitest";
-import { periodChange, periodDates, portfolioHistory, type ClosePoint } from "./history";
+import { periodChange, periodDates, portfolioHistory, type ClosePoint, type HistoryPoint } from "./history";
 import type { Transaction } from "./models";
 import { buildPortfolio } from "./portfolio";
 import { valuePortfolio } from "./valuation";
@@ -16,49 +16,44 @@ const tx = (t: Partial<Transaction> & Pick<Transaction, "type" | "date">): Trans
   ...t,
 });
 const closes = (points: [string, string][]): ClosePoint[] => points.map(([date, close]) => ({ date, close: new Decimal(close) }));
-const str = (points: { date: string; value: Decimal; invested: Decimal }[]) =>
-  points.map((p) => `${p.date} ${p.value.toString()} ${p.invested.toString()}`);
+const str = (points: HistoryPoint[]) =>
+  points.map((p) => `${p.date} v${p.value} i${p.invested} b${p.bought} p${p.proceeds}`);
 
 describe("portfolioHistory", () => {
   const history = [
-    tx({ type: "deposit", date: "2026-01-01", price: "1000" }),
     tx({ type: "buy", date: "2026-01-02", assetId: "A", quantity: "10", price: "50" }),
     tx({ type: "sell", date: "2026-01-05", assetId: "A", quantity: "4", price: "60" }),
   ];
   const series = new Map([
     ["A", closes([["2026-01-02", "52"], ["2026-01-03", "55"], ["2026-01-05", "60"]])],
   ]);
-  const dates = ["2025-12-31", "2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05", "2026-01-06"];
+  const dates = ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05", "2026-01-06"];
 
-  it("con efectivo: valor = posiciones a cierre + efectivo, aportado = depósitos", () => {
-    const points = portfolioHistory(history, series, dates, { tracksCash: true, currentPrices: new Map([["A", new Decimal("61")]]) });
+  it("valor = posiciones a cierre; invertido = coste abierto; sin efectivo", () => {
+    const points = portfolioHistory(history, series, dates, { currentPrices: new Map([["A", new Decimal("61")]]) });
     expect(str(points)).toEqual([
-      "2025-12-31 0 0",
-      "2026-01-01 1000 1000",
-      // 500 de efectivo + 10 × 52
-      "2026-01-02 1020 1000",
-      "2026-01-03 1050 1000",
+      "2026-01-01 v0 i0 b0 p0",
+      "2026-01-02 v520 i500 b500 p0",
+      "2026-01-03 v550 i500 b500 p0",
       // fin de semana: se mantiene el último cierre
-      "2026-01-04 1050 1000",
-      // venta 4 × 60: efectivo 740 + 6 × 60
-      "2026-01-05 1100 1000",
+      "2026-01-04 v550 i500 b500 p0",
+      // venta de 4 × 60 = 240 cobrados; quedan 6 con coste 300
+      "2026-01-05 v360 i300 b500 p240",
       // último día con el precio actual
-      "2026-01-06 1106 1000",
+      "2026-01-06 v366 i300 b500 p240",
     ]);
+  });
+
+  it("los depósitos importados no cuentan", () => {
+    const withDeposit = [tx({ type: "deposit", date: "2026-01-01", price: "1000" }), ...history];
+    const points = portfolioHistory(withDeposit, series, dates, { currentPrices: new Map([["A", new Decimal("61")]]) });
+    expect(points[0].value.toString()).toBe("0");
   });
 
   it("el último punto coincide con la valoración de la cartera", () => {
     const current = new Map([["A", new Decimal("61")]]);
-    const points = portfolioHistory(history, series, dates, { tracksCash: true, currentPrices: current });
-    const valuation = valuePortfolio(buildPortfolio(history), current);
-    expect(points.at(-1)!.value.toString()).toBe(valuation.totalValue.toString());
-  });
-
-  it("sin efectivo: valor = posiciones, aportado = coste abierto", () => {
-    const points = portfolioHistory(history.slice(1), series, dates, { tracksCash: false, currentPrices: new Map() });
-    expect(str(points).slice(2, 4)).toEqual(["2026-01-02 520 500", "2026-01-03 550 500"]);
-    // Tras vender 4 queda coste 300
-    expect(points.at(-1)!.invested.toString()).toBe("300");
+    const points = portfolioHistory(history, series, dates, { currentPrices: current });
+    expect(points.at(-1)!.value.toString()).toBe(valuePortfolio(buildPortfolio(history), current).totalValue.toString());
   });
 
   it("sin histórico usa el precio actual y sin precio no suma", () => {
@@ -66,40 +61,44 @@ describe("portfolioHistory", () => {
       tx({ type: "buy", date: "2026-01-02", assetId: "M", quantity: "2", price: "100" }),
       tx({ type: "buy", date: "2026-01-02", assetId: "X", quantity: "1", price: "10" }),
     ];
-    const points = portfolioHistory(buys, new Map(), ["2026-01-03"], {
-      tracksCash: false,
-      currentPrices: new Map([["M", new Decimal("120")]]),
-    });
+    const points = portfolioHistory(buys, new Map(), ["2026-01-03"], { currentPrices: new Map([["M", new Decimal("120")]]) });
     expect(points[0].value.toString()).toBe("240");
   });
 });
 
 describe("periodChange", () => {
-  const p = (date: string, value: string, invested: string) => ({ date, value: new Decimal(value), invested: new Decimal(invested) });
+  const p = (value: string, bought: string, proceeds: string): HistoryPoint => ({
+    date: "",
+    value: new Decimal(value),
+    invested: new Decimal(0),
+    bought: new Decimal(bought),
+    proceeds: new Decimal(proceeds),
+  });
 
-  it("descuenta las aportaciones del periodo", () => {
-    // De 1.000 a 1.600 aportando 500: ganancia 100 sobre una base de 1.500.
-    const change = periodChange([p("a", "1000", "900"), p("b", "1600", "1400")])!;
+  it("desde el inicio = no realizado + realizado sobre lo comprado", () => {
+    // Del ejemplo anterior: 366 + 240 − 500 = 106 → 21,2 %.
+    const change = periodChange([p("0", "0", "0"), p("366", "500", "240")])!;
+    expect(change.gain.toString()).toBe("106");
+    expect(change.pct!.toString()).toBe("0.212");
+  });
+
+  it("vender no cuenta como pérdida", () => {
+    // Antes de vender valía 550; tras vender 4 a 60 vale 360 y se cobraron 240.
+    const change = periodChange([p("550", "500", "0"), p("360", "500", "240")])!;
+    expect(change.gain.toString()).toBe("50");
+    expect(change.pct!.toFixed(4)).toBe("0.0909");
+  });
+
+  it("comprar no cuenta como ganancia", () => {
+    const change = periodChange([p("1000", "1000", "0"), p("1600", "1500", "0")])!;
     expect(change.gain.toString()).toBe("100");
-    expect(change.flows.toString()).toBe("500");
+    expect(change.bought.toString()).toBe("500");
     expect(change.pct!.toFixed(6)).toBe("0.066667");
   });
 
-  it("desde cero es la rentabilidad sobre lo aportado", () => {
-    const change = periodChange([p("a", "0", "0"), p("b", "1106", "1000")])!;
-    expect(change.gain.toString()).toBe("106");
-    expect(change.pct!.toString()).toBe("0.106");
-  });
-
-  it("las retiradas no cuentan como pérdida", () => {
-    const change = periodChange([p("a", "1000", "1000"), p("b", "700", "700")])!;
-    expect(change.gain.toString()).toBe("0");
-    expect(change.pct!.toString()).toBe("0");
-  });
-
   it("sin base no hay porcentaje", () => {
-    expect(periodChange([p("a", "0", "0"), p("b", "0", "0")])!.pct).toBeNull();
-    expect(periodChange([p("a", "1", "1")])).toBeNull();
+    expect(periodChange([p("0", "0", "0"), p("0", "0", "0")])!.pct).toBeNull();
+    expect(periodChange([p("1", "1", "0")])).toBeNull();
   });
 });
 

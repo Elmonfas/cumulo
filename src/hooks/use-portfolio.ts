@@ -6,6 +6,8 @@ import { getRepositories, type Repositories } from "@/data/repositories";
 import type { Asset, PriceCacheEntry, Transaction } from "@/domain/models";
 import { buildPortfolio, type PortfolioState } from "@/domain/portfolio";
 import { valuePortfolio, type PortfolioValuation } from "@/domain/valuation";
+import { showNotification } from "@/lib/notifications";
+import { checkAlerts } from "@/services/alerts";
 import { refreshPrices } from "@/services/prices";
 import { useLiveQuery } from "./use-live-query";
 
@@ -85,8 +87,10 @@ export function usePortfolio() {
     if (assetsRef.current.length === 0) return;
     setRefreshing(true);
     try {
-      const { failed } = await refreshPrices(getRepositories(), assetsRef.current, { force });
+      const repositories = getRepositories();
+      const { failed } = await refreshPrices(repositories, assetsRef.current, { force });
       setFailedIds(failed);
+      await checkAlerts(repositories, showNotification);
     } finally {
       setRefreshing(false);
     }

@@ -11,6 +11,7 @@ import { PeriodSelector } from "@/components/charts/period-selector";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/layout/page-header";
 import { QuoteFreshness } from "@/components/portfolio/quote-freshness";
+import { TriggeredAlerts } from "./triggered-alerts";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { VariationAmount, VariationBadge } from "@/components/variation-badge";
@@ -22,7 +23,8 @@ import { sortTransactions } from "@/domain/portfolio";
 import { useLiveQuery } from "@/hooks/use-live-query";
 import { usePortfolio, type PortfolioData } from "@/hooks/use-portfolio";
 import { usePriceHistories } from "@/hooks/use-price-histories";
-import { formatCurrency, todayIso } from "@/lib/format";
+import { formatCurrency, formatPercent, todayIso } from "@/lib/format";
+import { annualReturn } from "@/domain/performance";
 import { ASSET_TYPE_LABELS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 
@@ -46,7 +48,7 @@ export function HomeScreen() {
 
   return (
     <>
-      <PageHeader title={greeting} description="Tu patrimonio, de un vistazo." />
+      <PageHeader title={greeting} description="Tus inversiones, de un vistazo." />
       {portfolio.status === "loading" && <div className="h-72 animate-pulse rounded-card bg-surface" aria-hidden />}
       {portfolio.status === "error" && (
         <Card className="text-sm text-pretty text-text-muted">
@@ -105,10 +107,11 @@ function HomeContent({ data, failed, defaultPeriod }: { data: PortfolioData; fai
   const history = useMemo(() => {
     if (histories.status !== "ready") return null;
     const currentPrices = new Map([...data.prices].map(([id, p]) => [id, new Decimal(p.price)]));
-    const points = portfolioHistory(data.transactions, histories.closes, dates, { tracksCash: v.tracksCash, currentPrices });
+    const points = portfolioHistory(data.transactions, histories.closes, dates, { currentPrices });
     return { points, change: periodChange(points) };
-  }, [histories, data.prices, data.transactions, dates, v.tracksCash]);
+  }, [histories, data.prices, data.transactions, dates]);
 
+  const annual = useMemo(() => annualReturn(data.transactions, v.totalValue, today), [data.transactions, v.totalValue, today]);
   const periodLabel = PERIODS.find((p) => p.key === period)!.label;
   const byType = allocationByType(v, (id) => data.assets.get(id)?.type ?? "other");
   const byAsset = allocationByAsset(v);
@@ -118,8 +121,9 @@ function HomeContent({ data, failed, defaultPeriod }: { data: PortfolioData; fai
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:items-start">
+      <TriggeredAlerts className="lg:col-span-2" />
       <Card className="lg:row-span-2">
-        <p className="text-sm text-text-muted">{v.tracksCash ? "Patrimonio" : "Valor de la cartera"}</p>
+        <p className="text-sm text-text-muted">Valor de la cartera</p>
         <div className="@container">
           <AnimatedAmount value={v.totalValue} className="hero-figure mt-1 block whitespace-nowrap" />
         </div>
@@ -138,7 +142,7 @@ function HomeContent({ data, failed, defaultPeriod }: { data: PortfolioData; fai
         <PeriodSelector value={period} onChange={setChosen} className="mt-5" />
         <div className="mt-4 -mx-1">
           {history ? (
-            <ValueChart points={history.points} investedLabel={v.tracksCash ? "Aportado" : "Invertido"} />
+            <ValueChart points={history.points} investedLabel="Invertido" />
           ) : (
             <div className="h-52 animate-pulse rounded-2xl bg-surface-2 md:h-64" aria-hidden />
           )}
@@ -154,13 +158,18 @@ function HomeContent({ data, failed, defaultPeriod }: { data: PortfolioData; fai
       <Card>
         <h2 className="font-medium">Resumen</h2>
         <dl className="mt-3 divide-y divide-border text-sm">
-          <Row label={v.tracksCash ? "Aportado neto" : "Invertido"} value={formatCurrency(v.tracksCash ? data.state.netDeposits : v.invested)} />
+          <Row label="Invertido ahora" value={formatCurrency(v.invested)} />
+          <Row label="Total comprado" value={formatCurrency(data.state.bought)} />
+          <Row label="Cobrado en ventas" value={formatCurrency(v.saleProceeds)} />
           <Row label="Ganancia total" value={<VariationAmount value={v.totalGain} format={signedCurrency} />} />
+          <Row
+            label="Rentabilidad anual (TIR)"
+            value={annual ? <VariationAmount value={annual} format={(r) => formatPercent(r)} /> : <span className="text-text-muted">Menos de 1 año</span>}
+          />
           <Row label="No realizado" value={<VariationAmount value={v.unrealized} format={signedCurrency} />} />
           <Row label="Realizado" value={<VariationAmount value={v.realized} format={signedCurrency} />} />
           {!data.state.dividends.isZero() && <Row label="Dividendos netos" value={formatCurrency(data.state.dividends)} />}
           {!data.state.fees.isZero() && <Row label="Comisiones" value={formatCurrency(data.state.fees.negated())} />}
-          {v.tracksCash && <Row label="Efectivo" value={formatCurrency(v.cash)} />}
         </dl>
       </Card>
 

@@ -40,8 +40,9 @@ export function createDexieRepositories(db: CumuloDB): Repositories {
         await db.assets.update(id, changes);
       },
       async remove(id) {
-        await db.transaction("rw", db.assets, db.priceCache, async () => {
+        await db.transaction("rw", db.assets, db.priceCache, db.alerts, async () => {
           await db.priceCache.delete(id);
+          await db.alerts.where("assetId").equals(id).delete();
           await db.assets.delete(id);
         });
       },
@@ -87,9 +88,25 @@ export function createDexieRepositories(db: CumuloDB): Repositories {
 
     settings,
 
+    alerts: {
+      list: () => db.alerts.toArray(),
+      listByAsset: (assetId) => db.alerts.where("assetId").equals(assetId).toArray(),
+      async add(alert) {
+        const row = { ...alert, id: newId(), createdAt: new Date().toISOString() };
+        await db.alerts.add(row);
+        return row;
+      },
+      async markTriggered(id, price, at) {
+        await db.alerts.update(id, { triggeredAt: at, triggeredPrice: price });
+      },
+      async remove(id) {
+        await db.alerts.delete(id);
+      },
+    },
+
     backup: {
       async exportAll() {
-        return db.transaction("r", [db.assets, db.transactions, db.priceCache, db.settings], async () => ({
+        return db.transaction("r", [db.assets, db.transactions, db.priceCache, db.settings, db.alerts], async () => ({
           format: BACKUP_FORMAT,
           version: BACKUP_VERSION,
           exportedAt: new Date().toISOString(),
@@ -97,15 +114,17 @@ export function createDexieRepositories(db: CumuloDB): Repositories {
           transactions: await db.transactions.orderBy("date").toArray(),
           priceCache: await db.priceCache.toArray(),
           settings: await settings.get(),
+          alerts: await db.alerts.toArray(),
         }));
       },
       async importAll(data) {
-        await db.transaction("rw", [db.assets, db.transactions, db.priceCache, db.settings], async () => {
-          await Promise.all([db.assets.clear(), db.transactions.clear(), db.priceCache.clear(), db.settings.clear()]);
+        await db.transaction("rw", [db.assets, db.transactions, db.priceCache, db.settings, db.alerts], async () => {
+          await Promise.all([db.assets.clear(), db.transactions.clear(), db.priceCache.clear(), db.settings.clear(), db.alerts.clear()]);
           await db.assets.bulkAdd(data.assets);
           await db.transactions.bulkAdd(data.transactions);
           await db.priceCache.bulkAdd(data.priceCache);
           await db.settings.put({ ...DEFAULT_SETTINGS, ...data.settings, id: "app" });
+          await db.alerts.bulkAdd(data.alerts ?? []);
         });
       },
     },

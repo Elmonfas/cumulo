@@ -47,6 +47,19 @@ export interface PriceCacheEntry {
   fetchedAt?: IsoDateString;
 }
 
+/** Aviso cuando un activo cruza un precio (en EUR). Se dispara una sola vez. */
+export interface PriceAlert {
+  id: string;
+  assetId: string;
+  direction: "above" | "below";
+  price: DecimalString;
+  createdAt: IsoDateString;
+  /** Cuándo se cumplió; mientras falte, la alerta está activa. */
+  triggeredAt?: IsoDateString;
+  /** Precio que la disparó. */
+  triggeredPrice?: DecimalString;
+}
+
 export type PeriodKey = "1D" | "1W" | "1M" | "YTD" | "1Y" | "ALL";
 
 export const PERIODS: { key: PeriodKey; label: string }[] = [

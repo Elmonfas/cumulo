@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Transaction } from "./models";
-import { buildPortfolio, cashEffect, checkTransactions, InvalidTransactionError, openPositions, OversellError } from "./portfolio";
+import { buildPortfolio, checkTransactions, InvalidTransactionError, openPositions, OversellError, transactionTotal } from "./portfolio";
 
 let seq = 0;
 const tx = (t: Partial<Transaction> & Pick<Transaction, "type" | "date">): Transaction => ({
@@ -27,7 +27,7 @@ describe("buildPortfolio — compras y coste medio", () => {
     expect(p.quantity.toString()).toBe("15");
     expect(p.cost.toString()).toBe("1652");
     expect(p.averageCost.toFixed(4)).toBe("110.1333");
-    expect(state.cash.toString()).toBe("-1652");
+    expect(state.bought.toString()).toBe("1652");
   });
 
   it("admite cantidades fraccionarias sin perder precisión", () => {
@@ -105,9 +105,8 @@ describe("buildPortfolio — venta excesiva", () => {
   });
 });
 
-describe("buildPortfolio — efectivo", () => {
-  it("cuadra depósitos, compras, ventas, dividendos, comisiones y retiradas", () => {
-    // +1.000 − (5 × 100 + 1) + (2 × 120 − 1) + (10 − 1,5 de retención) − 2 − 300 = 444,5
+describe("buildPortfolio — sin efectivo", () => {
+  it("suma lo comprado, lo cobrado y lo realizado; ignora depósitos y retiradas", () => {
     const state = buildPortfolio([
       cash("deposit", "2026-01-01", "1000"),
       buy("2026-01-02", "5", "100", "1"),
@@ -116,28 +115,29 @@ describe("buildPortfolio — efectivo", () => {
       cash("fee", "2026-03-15", "2"),
       cash("withdrawal", "2026-04-01", "300"),
     ]);
-    expect(state.cash.toString()).toBe("444.5");
-    expect(state.netDeposits.toString()).toBe("700");
+    expect(state.bought.toString()).toBe("501");
+    // Cobrado: 2 × 120 − 1 = 239
+    expect(state.saleProceeds.toString()).toBe("239");
     expect(state.dividends.toString()).toBe("8.5");
     expect(state.fees.toString()).toBe("2");
-    // Ganancia: (2 × 120 − 1) − 2 × 100,2 = 239 − 200,4 = 38,6
+    // Ganancia: 239 − 2 × 100,2 = 38,6
     expect(state.realizedGain.toString()).toBe("38.6");
+    expect("cash" in state).toBe(false);
+  });
+
+  it("guarda el resultado de cada venta", () => {
+    const s1 = sell("2026-03-01", "15", "150", "2");
+    const state = buildPortfolio([buy("2026-01-01", "10", "100", "1"), buy("2026-02-01", "10", "120", "1"), s1]);
+    const sale = state.sales.get(s1.id)!;
+    expect([sale.proceeds.toString(), sale.cost.toString(), sale.gain.toString()]).toEqual(["2248", "1601.5", "646.5"]);
+    expect(state.positions.get("A")!.saleProceeds.toString()).toBe("2248");
   });
 });
 
-describe("cashEffect", () => {
-  it("coincide con la variación de efectivo de buildPortfolio", () => {
-    const history = [
-      cash("deposit", "2026-01-01", "1000"),
-      buy("2026-01-02", "5", "100", "1"),
-      sell("2026-02-01", "2", "120", "1"),
-      tx({ type: "dividend", date: "2026-03-01", price: "10", tax: "1.5", assetId: "A" }),
-      cash("fee", "2026-03-15", "2"),
-      cash("withdrawal", "2026-04-01", "300"),
-    ];
-    const total = history.reduce((sum, t) => sum.plus(cashEffect(t)), buildPortfolio([]).cash);
-    expect(total.toString()).toBe(buildPortfolio(history).cash.toString());
-    expect(cashEffect(history[1]).toString()).toBe("-501");
+describe("transactionTotal", () => {
+  it("compra con comisiones y venta sin ellas", () => {
+    expect(transactionTotal(buy("2026-01-02", "5", "100", "1")).toString()).toBe("501");
+    expect(transactionTotal(sell("2026-02-01", "2", "120", "1")).toString()).toBe("239");
   });
 });
 
