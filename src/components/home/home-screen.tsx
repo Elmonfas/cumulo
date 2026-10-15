@@ -14,6 +14,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { QuoteFreshness } from "@/components/portfolio/quote-freshness";
 import { RefreshPricesButton } from "@/components/portfolio/refresh-prices-button";
 import { TriggeredAlerts } from "./triggered-alerts";
+import { AssetSwitcher } from "./asset-switcher";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { VariationAmount, VariationBadge } from "@/components/variation-badge";
@@ -135,12 +136,27 @@ function HomeContent({
   }, [dates]);
   const histories = usePriceHistories(involvedAssets, from);
 
+  // Activo enfocado en la gráfica principal (null = toda la cartera).
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const openAssets = useMemo(
+    () => v.positions.map((p) => data.assets.get(p.position.assetId)).filter((a): a is NonNullable<typeof a> => Boolean(a)),
+    [v.positions, data.assets],
+  );
+  const focused = focusId ? v.positions.find((p) => p.position.assetId === focusId) ?? null : null;
+  const focusAsset = focused ? data.assets.get(focused.position.assetId) : undefined;
+
   const history = useMemo(() => {
     if (histories.status !== "ready") return null;
     const currentPrices = new Map([...data.prices].map(([id, p]) => [id, new Decimal(p.price)]));
-    const points = portfolioHistory(data.transactions, histories.closes, dates, { currentPrices });
+    const transactions = focused ? data.transactions.filter((t) => t.assetId === focused.position.assetId) : data.transactions;
+    const points = portfolioHistory(transactions, histories.closes, dates, { currentPrices });
     return { points, change: periodChange(points) };
-  }, [histories, data.prices, data.transactions, dates]);
+  }, [histories, data.prices, data.transactions, dates, focused]);
+
+  const heroValue = focused ? (focused.marketValue ?? new Decimal(0)) : v.totalValue;
+  const invested = focused ? focused.position.cost : v.invested;
+  const unrealized = focused ? focused.unrealized : v.unrealized;
+  const unrealizedPct = focused ? focused.unrealizedPct : v.unrealizedPct;
 
   const annual = useMemo(() => annualReturn(data.transactions, v.totalValue, today), [data.transactions, v.totalValue, today]);
   const periodLabel = PERIODS.find((p) => p.key === period)!.label;
@@ -155,12 +171,25 @@ function HomeContent({
       <TriggeredAlerts />
       <Card>
         <div className="flex items-start justify-between gap-3">
-          <p className="text-sm text-text-muted">Valor de la cartera</p>
+          <p className="min-w-0 truncate text-sm text-text-muted">{focusAsset ? focusAsset.name : "Valor de la cartera"}</p>
           <RefreshPricesButton refreshing={refreshing} lastFetchedAt={data.lastFetchedAt} onRefresh={onRefresh} />
         </div>
         <div className="@container">
-          <AnimatedAmount value={v.totalValue} className="hero-figure mt-1 block whitespace-nowrap" />
+          <AnimatedAmount value={heroValue} className="hero-figure mt-1 block whitespace-nowrap" />
         </div>
+        <dl className="mt-3 grid grid-cols-2 gap-2 sm:max-w-md">
+          <div className="rounded-2xl bg-surface-2 px-3.5 py-2.5">
+            <dt className="text-xs text-text-muted">Invertido</dt>
+            <dd className="mt-0.5 font-medium tabular-nums">{formatCurrency(invested)}</dd>
+          </div>
+          <div className="rounded-2xl bg-surface-2 px-3.5 py-2.5">
+            <dt className="text-xs text-text-muted">{unrealized && unrealized.isNegative() ? "Pérdida" : "Ganancia"}</dt>
+            <dd className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 font-medium">
+              {unrealized ? <VariationAmount value={unrealized} format={signedCurrency} /> : "—"}
+              <VariationBadge ratio={unrealizedPct} />
+            </dd>
+          </div>
+        </dl>
         <div className="mt-3 flex min-h-6 flex-wrap items-center gap-2">
           {history?.change ? (
             <>
@@ -173,7 +202,10 @@ function HomeContent({
           )}
         </div>
 
-        <PeriodSelector value={period} onChange={setChosen} className="mt-5" />
+        <div className="mt-5">
+          <AssetSwitcher assets={openAssets} value={focused ? focused.position.assetId : null} onChange={setFocusId} />
+        </div>
+        <PeriodSelector value={period} onChange={setChosen} className="mt-2" />
         <div className="mt-4 -mx-1">
           {history ? (
             <ValueChart points={history.points} investedLabel="Invertido" />
