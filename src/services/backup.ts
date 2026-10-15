@@ -46,5 +46,6 @@ export async function wipeAllData(repositories: Repositories) {
     priceCache: [],
     settings: DEFAULT_SETTINGS,
     alerts: [],
+    watchlist: [],
   });
 }

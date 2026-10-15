@@ -3,30 +3,34 @@
 import Decimal from "decimal.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getRepositories, type Repositories } from "@/data/repositories";
-import type { Asset, PriceCacheEntry, Transaction } from "@/domain/models";
+import type { Asset, PriceCacheEntry, Transaction, WatchItem } from "@/domain/models";
 import { buildPortfolio, type PortfolioState } from "@/domain/portfolio";
 import { valuePortfolio, type PortfolioValuation } from "@/domain/valuation";
 import { showNotification } from "@/lib/notifications";
 import { checkAlerts } from "@/services/alerts";
 import { refreshPrices } from "@/services/prices";
+import { fillWatchBaselines } from "@/services/watchlist";
 import { useLiveQuery } from "./use-live-query";
 
 /** Con la app abierta y visible, los precios se piden cada 30 s. */
 export const REFRESH_INTERVAL_MS = 30_000;
 
 const loadAll = async (repositories: Repositories) => {
-  const [transactions, assets, prices] = await Promise.all([
+  const [transactions, assets, prices, watchlist] = await Promise.all([
     repositories.transactions.list(),
     repositories.assets.list(),
     repositories.priceCache.list(),
+    repositories.watchlist.list(),
   ]);
-  return { transactions, assets, prices };
+  return { transactions, assets, prices, watchlist };
 };
 
 export interface PortfolioData {
   transactions: Transaction[];
   assets: Map<string, Asset>;
   prices: Map<string, PriceCacheEntry>;
+  /** Activos que sigues sin tenerlos. */
+  watchlist: WatchItem[];
   state: PortfolioState;
   valuation: PortfolioValuation;
   /** Hora de la cotización más antigua entre las posiciones abiertas. */
@@ -52,7 +56,7 @@ export function usePortfolio() {
 
   const result: PortfolioStatus = useMemo(() => {
     if (live.status !== "ready") return live;
-    const { transactions, assets, prices } = live.data;
+    const { transactions, assets, prices, watchlist } = live.data;
     let state: PortfolioState;
     try {
       state = buildPortfolio(transactions);
@@ -75,6 +79,7 @@ export function usePortfolio() {
         transactions,
         assets: new Map(assets.map((a) => [a.id, a])),
         prices: priceMap,
+        watchlist,
         state,
         valuation,
         oldestQuote: quoteTimes[0] ?? null,
@@ -83,7 +88,11 @@ export function usePortfolio() {
     };
   }, [live]);
 
-  const heldAssetIds = result.status === "ready" ? result.data.valuation.positions.map((p) => p.position.assetId).join(",") : "";
+  // Precios a refrescar: lo que tienes y lo que sigues.
+  const heldAssetIds =
+    result.status === "ready"
+      ? [...new Set([...result.data.valuation.positions.map((p) => p.position.assetId), ...result.data.watchlist.map((w) => w.assetId)])].join(",")
+      : "";
   useEffect(() => {
     if (result.status === "ready") {
       const held = new Set(heldAssetIds.split(","));
@@ -98,6 +107,7 @@ export function usePortfolio() {
       const repositories = getRepositories();
       const { failed } = await refreshPrices(repositories, assetsRef.current, { force });
       setFailedIds(failed);
+      await fillWatchBaselines(repositories);
       await checkAlerts(repositories, showNotification);
     } finally {
       setRefreshing(false);

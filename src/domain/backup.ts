@@ -1,4 +1,4 @@
-import type { Asset, PriceAlert, PriceCacheEntry, Settings, Transaction } from "./models";
+import type { Asset, PriceAlert, PriceCacheEntry, Settings, Transaction, WatchItem } from "./models";
 
 export const BACKUP_FORMAT = "cumulo-backup";
 export const BACKUP_VERSION = 1;
@@ -13,6 +13,7 @@ export interface BackupData {
   settings: Settings;
   /** Desde la versión con alertas; los backups anteriores no lo traen. */
   alerts?: PriceAlert[];
+  watchlist?: WatchItem[];
 }
 
 export class InvalidBackupError extends Error {
@@ -87,6 +88,14 @@ export function parseBackup(raw: unknown): BackupData {
       !isDecimalString(a.price)
     ) {
       throw new InvalidBackupError(`alerta ${i + 1} incorrecta.`);
+    }
+  });
+
+  const watchlist = raw.watchlist ?? [];
+  if (!Array.isArray(watchlist)) throw new InvalidBackupError("lista de seguimiento incorrecta.");
+  watchlist.forEach((w, i) => {
+    if (!isObject(w) || !assetIds.has(w.assetId as string) || !isString(w.addedAt)) {
+      throw new InvalidBackupError(`activo seguido ${i + 1} incorrecto.`);
     }
   });
 

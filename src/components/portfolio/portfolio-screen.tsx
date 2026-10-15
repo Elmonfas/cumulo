@@ -21,6 +21,7 @@ import { ASSET_TYPE_LABELS } from "@/lib/labels";
 
 import { QuoteFreshness } from "./quote-freshness";
 import { RefreshPricesButton } from "./refresh-prices-button";
+import { WatchlistSection } from "./watchlist-section";
 
 const PositionDetail = dynamic(() => import("./position-detail").then((m) => m.PositionDetail), { ssr: false });
 
@@ -42,6 +43,7 @@ export function PortfolioScreen() {
       )}
       {portfolio.status === "ready" &&
         (portfolio.data.valuation.positions.length === 0 && portfolio.data.state.positions.size === 0 ? (
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:gap-5">
           <EmptyState
             icon={PieChart}
             title="Aún no tienes posiciones"
@@ -52,6 +54,8 @@ export function PortfolioScreen() {
               </Link>
             }
           />
+          <WatchlistSection data={portfolio.data} />
+          </div>
         ) : (
           <PortfolioContent
             data={portfolio.data}
@@ -137,6 +141,8 @@ function PortfolioContent({
           </Card>
         </section>
       )}
+
+      <WatchlistSection data={data} />
 
       {closed.length > 0 && (
         <section aria-labelledby="closed-positions">

@@ -60,6 +60,14 @@ export interface PriceAlert {
   triggeredPrice?: DecimalString;
 }
 
+/** Activo que sigues sin tenerlo en cartera. */
+export interface WatchItem {
+  assetId: string;
+  addedAt: IsoDateString;
+  /** Precio cuando empezaste a seguirlo; se rellena con el primer precio conocido. */
+  addedPrice?: DecimalString;
+}
+
 export type PeriodKey = "1D" | "1W" | "1M" | "YTD" | "1Y" | "ALL";
 
 export const PERIODS: { key: PeriodKey; label: string }[] = [

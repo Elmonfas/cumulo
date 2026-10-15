@@ -1,5 +1,5 @@
 import type { BackupData } from "@/domain/backup";
-import type { Asset, PriceAlert, PriceCacheEntry, PriceSource, Settings, Transaction } from "@/domain/models";
+import type { Asset, PriceAlert, PriceCacheEntry, PriceSource, Settings, Transaction, WatchItem } from "@/domain/models";
 
 /**
  * Contratos de acceso a datos. La UI solo conoce estas interfaces; hoy las
@@ -47,6 +47,13 @@ export interface AlertRepository {
   remove(id: string): Promise<void>;
 }
 
+export interface WatchlistRepository {
+  list(): Promise<WatchItem[]>;
+  add(assetId: string): Promise<WatchItem>;
+  setBaseline(assetId: string, price: string): Promise<void>;
+  remove(assetId: string): Promise<void>;
+}
+
 export interface BackupRepository {
   exportAll(): Promise<BackupData>;
   /** Sustituye todos los datos por los del backup, de forma atómica. */
@@ -59,5 +66,6 @@ export interface Repositories {
   priceCache: PriceCacheRepository;
   settings: SettingsRepository;
   alerts: AlertRepository;
+  watchlist: WatchlistRepository;
   backup: BackupRepository;
 }
