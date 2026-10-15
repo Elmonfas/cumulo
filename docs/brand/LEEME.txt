@@ -1,0 +1,7 @@
+cúmulo — dirección 2a (c de cúmulo)
+
+svg/  símbolo en morado #7C3AED, lila #A78BFA, negro y blanco; iconos de app 512 (claro, oscuro, degradado); lockups horizontales.
+png/  iconos de app 512 y 1024, apple-touch-icon 180, favicon 16/32/48, símbolo a 1024.
+favicon.svg  cambia a lila en modo oscuro del sistema.
+
+Los lockups usan la tipografía Geist (peso 500) como texto vivo. Antes de la entrega final, conviértelo a contornos en Figma o Illustrator.

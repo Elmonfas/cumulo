@@ -40,7 +40,7 @@ export function Sidebar() {
         aria-label="cúmulo, inicio"
         className="mb-6 rounded-[10px] outline-none focus-visible:ring-3 focus-visible:ring-accent/40"
       >
-        <LogoMark />
+        <LogoMark className="size-9" />
       </Link>
       <nav aria-label="Principal" className="flex flex-1 flex-col items-center gap-1">
         {PRIMARY_NAV.map((item) => (

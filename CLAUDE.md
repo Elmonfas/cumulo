@@ -48,13 +48,17 @@ Define estos tokens como variables CSS en `:root` y `.dark`, y mapéalos en Tail
 | text-muted | #8B8A9B | #6B6A7A |
 | accent | #A78BFA | #7C3AED |
 | series-2 | #FACC15 | #F59E0B |
+| series-3 (rosa) | #F472B6 | #DB2777 |
+| series-4 (verde) | #34D399 | #059669 |
+| series-5 (azul) | #60A5FA | #2563EB |
+| series-6 (naranja) | #FB923C | #EA580C |
 | positive | #4ADE80 | #16A34A |
 | negative | #F87171 | #DC2626 |
 
 Reglas:
 - Tarjetas con radio de 24px, borde de 1px y sin sombras en oscuro (una sombra muy suave como máximo en claro). Gap de 16px en móvil y 20px en desktop.
 - La cifra protagonista mide 48–56px, peso 500, tracking -0.02em, `tabular-nums` siempre.
-- Morado = acento/selección. Verde y rojo SOLO para variaciones. No se usan otros colores.
+- Morado = acento/selección. Verde y rojo SOLO para variaciones. Las gráficas de distribución usan la paleta de series (morado, amarillo, verde, rosa, azul, naranja: tokens series-2…series-6); fuera de las gráficas no se usan otros colores.
 - Selector de periodo en píldora: 1D · 1S · 1M · YTD · 1A · Todo.
 - Badge de variación: píldora con flecha, `↗ 2,4 %`, fondo positive/negative al 15 %.
 - Gráficas de área con degradado accent→transparente, sin rejilla vertical y con tooltip en píldora.

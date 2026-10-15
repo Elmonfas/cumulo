@@ -1,4 +1,4 @@
-import { ChevronRight, TrendingUp } from "lucide-react";
+import { CalendarSync, ChevronRight, TrendingUp } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
@@ -11,6 +11,12 @@ const TOOLS = [
     title: "Interés compuesto",
     description: "Proyecta aportaciones mensuales con o sin inflación.",
     icon: TrendingUp,
+  },
+  {
+    href: "/herramientas/aportaciones",
+    title: "Aportaciones periódicas",
+    description: "Simula invertir cada mes en un activo con precios reales.",
+    icon: CalendarSync,
   },
 ];
 

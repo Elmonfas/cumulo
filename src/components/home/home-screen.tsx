@@ -9,6 +9,7 @@ import { AnimatedAmount } from "@/components/animated-amount";
 import { AssetAvatar } from "@/components/asset-avatar";
 import { PeriodSelector } from "@/components/charts/period-selector";
 import { EmptyState } from "@/components/empty-state";
+import { LogoLockup } from "@/components/logo";
 import { PageHeader } from "@/components/layout/page-header";
 import { QuoteFreshness } from "@/components/portfolio/quote-freshness";
 import { TriggeredAlerts } from "./triggered-alerts";
@@ -38,6 +39,15 @@ const AllocationDonut = dynamic(() => import("@/components/charts/allocation-don
   loading: () => <div className="h-40 animate-pulse rounded-2xl bg-surface-2" aria-hidden />,
 });
 
+const PositionReturnsChart = dynamic(
+  () => import("@/components/charts/position-returns-chart").then((m) => m.PositionReturnsChart),
+  { ssr: false, loading: () => <div className="h-44 animate-pulse rounded-2xl bg-surface-2" aria-hidden /> },
+);
+
+/** Etiqueta corta para el eje: ticker sin mercado o iniciales. */
+const shortTicker = (asset?: { ticker?: string; name: string }) =>
+  (asset?.ticker ?? asset?.name ?? "?").split(".")[0].slice(0, 4).toUpperCase();
+
 const loadSettings = (repositories: Repositories) => repositories.settings.get();
 const signedCurrency = (v: Decimal) => formatCurrency(v, { signed: true });
 
@@ -48,6 +58,7 @@ export function HomeScreen() {
 
   return (
     <>
+      <LogoLockup className="mb-4 md:hidden" />
       <PageHeader title={greeting} description="Tus inversiones, de un vistazo." />
       {portfolio.status === "loading" && <div className="h-72 animate-pulse rounded-card bg-surface" aria-hidden />}
       {portfolio.status === "error" && (
@@ -120,9 +131,9 @@ function HomeContent({ data, failed, defaultPeriod }: { data: PortfolioData; fai
   const worst = ranked.length > 3 ? ranked.slice(-3).reverse().filter((p) => !best.includes(p)) : [];
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:items-start">
-      <TriggeredAlerts className="lg:col-span-2" />
-      <Card className="lg:row-span-2">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:gap-5">
+      <TriggeredAlerts />
+      <Card>
         <p className="text-sm text-text-muted">Valor de la cartera</p>
         <div className="@container">
           <AnimatedAmount value={v.totalValue} className="hero-figure mt-1 block whitespace-nowrap" />
@@ -155,6 +166,25 @@ function HomeContent({ data, failed, defaultPeriod }: { data: PortfolioData; fai
         />
       </Card>
 
+      {/* Segunda fila: dos gráficos, uno junto al otro. */}
+      {byAsset.length > 0 && (
+        <div className="grid grid-cols-2 gap-3 md:gap-5">
+          <AllocationCard byType={byType} byAsset={byAsset} data={data} />
+          <Card className="min-w-0 p-4 md:p-6">
+            <h2 className="text-sm font-medium md:text-base">Rentabilidad por posición</h2>
+            <p className="mt-0.5 text-xs text-text-muted">No realizado</p>
+            <div className="@container mt-3">
+              <PositionReturnsChart
+                positions={v.positions}
+                nameOf={(id) => data.assets.get(id)?.name ?? "Activo"}
+                tickerOf={(id) => shortTicker(data.assets.get(id))}
+              />
+            </div>
+          </Card>
+        </div>
+      )}
+
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-2 md:gap-5 md:items-start">
       <Card>
         <h2 className="font-medium">Resumen</h2>
         <dl className="mt-3 divide-y divide-border text-sm">
@@ -173,17 +203,16 @@ function HomeContent({ data, failed, defaultPeriod }: { data: PortfolioData; fai
         </dl>
       </Card>
 
-      {byAsset.length > 0 && <AllocationCard byType={byType} byAsset={byAsset} data={data} />}
-
       {best.length > 0 && (
-        <Card className="lg:col-span-2">
+        <Card>
           <h2 className="font-medium">Movimientos de tus posiciones</h2>
-          <div className={cn("mt-3 grid gap-4", worst.length > 0 && "md:grid-cols-2")}>
+          <div className="mt-3 grid gap-4">
             <RankList title="Más suben" items={best} data={data} />
             {worst.length > 0 && <RankList title="Más bajan" items={worst} data={data} />}
           </div>
         </Card>
       )}
+      </div>
     </div>
   );
 }
@@ -216,10 +245,10 @@ function AllocationCard({
         : (data.assets.get(key)?.name ?? "Activo");
 
   return (
-    <Card>
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="font-medium">Distribución</h2>
-        <div role="radiogroup" aria-label="Agrupar por" className="flex gap-0.5 rounded-full bg-surface-2 p-1">
+    <Card className="min-w-0 p-4 md:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-medium md:text-base">Distribución</h2>
+        <div role="radiogroup" aria-label="Agrupar por" className="flex gap-0.5 rounded-full bg-surface-2 p-0.5">
           {(["asset", "type"] as const).map((m) => (
             <button
               key={m}
@@ -228,7 +257,7 @@ function AllocationCard({
               aria-checked={mode === m}
               onClick={() => setMode(m)}
               className={cn(
-                "h-7 rounded-full px-3 text-xs font-medium transition-colors outline-none focus-visible:ring-3 focus-visible:ring-accent/40",
+                "h-6 rounded-full px-2.5 text-[11px] font-medium transition-colors outline-none focus-visible:ring-3 focus-visible:ring-accent/40",
                 mode === m ? "bg-accent text-accent-foreground" : "text-text-muted hover:text-text",
               )}
             >
