@@ -38,9 +38,13 @@ export interface Transaction {
 
 export interface PriceCacheEntry {
   assetId: string;
+  /** Precio en EUR. */
   price: DecimalString;
   currency: "EUR";
+  /** Hora de la cotización según la fuente (o del ajuste manual). */
   updatedAt: IsoDateString;
+  /** Cuándo se pidió a la fuente; decide si hay que refrescar. */
+  fetchedAt?: IsoDateString;
 }
 
 export type PeriodKey = "1D" | "1W" | "1M" | "YTD" | "1Y" | "ALL";
