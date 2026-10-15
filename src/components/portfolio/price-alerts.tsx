@@ -1,5 +1,6 @@
 "use client";
 
+import Decimal from "decimal.js";
 import { Bell, BellOff, Trash2 } from "lucide-react";
 import { useCallback, useState, useSyncExternalStore, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
@@ -121,7 +122,7 @@ export function PriceAlerts({ assetId, currentPrice }: { assetId: string; curren
           value={price}
           onValueChange={setPrice}
           error={error}
-          placeholder={currentPrice ? currentPrice.replace(".", ",").slice(0, 10) : "0,00"}
+          placeholder={currentPrice ? new Decimal(currentPrice).toFixed(2).replace(".", ",") : "0,00"}
           hint="Avisa una vez, con la app abierta: no hay servidor que vigile tus datos."
         />
         <Button type="submit" variant="secondary">

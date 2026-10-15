@@ -4,7 +4,7 @@ import Decimal from "decimal.js";
 import { ChevronDown, Calculator } from "lucide-react";
 import { useMemo, useState } from "react";
 import { DecimalField } from "@/components/ui/decimal-field";
-import { VariationAmount, VariationBadge } from "@/components/variation-badge";
+import { VariationAmount } from "@/components/variation-badge";
 import { simulateBuy } from "@/domain/what-if";
 import { formatCurrency, formatPercent, formatQuantity } from "@/lib/format";
 import { parseDecimal, toInputString } from "@/lib/parse";
@@ -91,7 +91,10 @@ export function WhatIfBuy({ quantity, cost, averageCost, marketPrice, otherValue
                 <span className="inline-flex items-center gap-2">
                   <span className="text-text-muted">{formatCurrency(averageCost)} →</span>
                   {formatCurrency(result.averageCost)}
-                  {result.averageChange && <VariationBadge ratio={result.averageChange} />}
+                  {/* Neutro: que suba el precio medio no es ni bueno ni malo por sí solo. */}
+                  {result.averageChange && (
+                    <span className="rounded-full bg-surface px-2 py-0.5 text-xs text-text-muted">{formatPercent(result.averageChange)}</span>
+                  )}
                 </span>
               }
             />

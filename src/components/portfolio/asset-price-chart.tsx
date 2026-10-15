@@ -42,9 +42,10 @@ const tradeLabel = (m: TradeMarker) =>
  * línea del precio medio de compra para ver de un vistazo si vas en positivo.
  */
 export function AssetPriceChart({ asset, transactions, currentPrice, averageCost }: AssetPriceChartProps) {
-  const [period, setPeriod] = useState<PeriodKey>("ALL");
   const today = todayIso();
   const trades = useMemo(() => transactions.filter((t) => t.type === "buy" || t.type === "sell"), [transactions]);
+  // Sin operaciones (activo seguido) "Todo" no tiene sentido: se empieza por un año.
+  const [period, setPeriod] = useState<PeriodKey>(() => (trades.length ? "ALL" : "1Y"));
   const firstTrade = useMemo(() => trades.map((t) => t.date.slice(0, 10)).sort()[0] ?? today, [trades, today]);
 
   // Un único histórico que cubre todos los periodos; luego se recorta.
@@ -57,7 +58,7 @@ export function AssetPriceChart({ asset, transactions, currentPrice, averageCost
 
   const series = useMemo(() => {
     if (histories.status !== "ready") return null;
-    const start = period === "ALL" ? firstTrade : periodStart(period, today, firstTrade);
+    const start = period === "ALL" ? (trades.length ? firstTrade : addDays(today, -365)) : periodStart(period, today, firstTrade);
     const closes = histories.closes.get(asset.id) ?? [];
     return priceSeriesWithTrades(closes, trades, currentPrice ? { date: today, price: currentPrice } : undefined, start);
   }, [histories, asset.id, trades, currentPrice, period, firstTrade, today]);
@@ -71,7 +72,12 @@ export function AssetPriceChart({ asset, transactions, currentPrice, averageCost
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
-      <PeriodSelector value={period} onChange={setPeriod} periods={PERIODS} className="w-full sm:w-72" />
+      <PeriodSelector
+        value={period}
+        onChange={setPeriod}
+        periods={trades.length ? PERIODS : PERIODS.filter((p) => p !== "ALL")}
+        className="w-full sm:w-72"
+      />
       {change && (
         <p className="flex items-center gap-1.5 text-xs text-text-muted">
           <VariationBadge ratio={change} />
@@ -202,10 +208,12 @@ function Chart({
         </ResponsiveContainer>
       </div>
       <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-muted">
-        <li className="flex items-center gap-1.5">
-          <span className="size-2.5 rounded-full bg-accent" aria-hidden />
-          Compra
-        </li>
+        {markers.some((m) => m.type === "buy") && (
+          <li className="flex items-center gap-1.5">
+            <span className="size-2.5 rounded-full bg-accent" aria-hidden />
+            Compra
+          </li>
+        )}
         {hasSells && (
           <li className="flex items-center gap-1.5">
             <span className="size-2.5 rounded-full bg-series-2" aria-hidden />
