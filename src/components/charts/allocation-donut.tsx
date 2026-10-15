@@ -10,7 +10,8 @@ const OPACITIES = [1, 0.72, 0.52, 0.38, 0.27, 0.18];
 export function AllocationDonut({ slices, labelOf }: { slices: AllocationSlice[]; labelOf: (key: string) => string }) {
   const data = slices.map((s) => ({ key: s.key, value: Number(s.share.toFixed(6)) }));
   return (
-    <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center">
+    <div className="@container min-w-0">
+    <div className="flex min-w-0 flex-col items-center gap-5 @md:flex-row @md:items-center">
       <div className="relative size-40 shrink-0" role="img" aria-label="Distribución de la cartera">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -22,7 +23,7 @@ export function AllocationDonut({ slices, labelOf }: { slices: AllocationSlice[]
           </PieChart>
         </ResponsiveContainer>
       </div>
-      <ul className="grid w-full min-w-0 gap-2">
+      <ul className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)] gap-2">
         {slices.map((s, i) => (
           <li key={s.key} className="flex items-center gap-2.5 text-sm">
             <span
@@ -36,6 +37,7 @@ export function AllocationDonut({ slices, labelOf }: { slices: AllocationSlice[]
           </li>
         ))}
       </ul>
+    </div>
     </div>
   );
 }

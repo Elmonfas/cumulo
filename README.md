@@ -9,4 +9,9 @@ pnpm dev
 
 Comprobaciones: `pnpm lint && pnpm typecheck && pnpm test`.
 
-Las reglas del proyecto están en [CLAUDE.md](CLAUDE.md); las ideas aparcadas, en [IDEAS.md](IDEAS.md).
+- Reglas del proyecto: [CLAUDE.md](CLAUDE.md)
+- Fuentes de precios y sus límites: [docs/precios.md](docs/precios.md)
+- Verificación del interés compuesto: [docs/interes-compuesto-verificacion.xlsx](docs/interes-compuesto-verificacion.xlsx)
+- Ideas aparcadas: [IDEAS.md](IDEAS.md)
+
+Variables de entorno opcionales en [.env.example](.env.example).
