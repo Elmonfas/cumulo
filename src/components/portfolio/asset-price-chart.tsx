@@ -10,7 +10,7 @@ import { addDays, periodStart } from "@/domain/history";
 import type { Asset, PeriodKey, Transaction } from "@/domain/models";
 import { priceSeriesWithTrades, type TradeMarker } from "@/domain/trade-markers";
 import { usePriceHistories } from "@/hooks/use-price-histories";
-import { formatCompactCurrency, formatCurrency, formatDate, formatNumber, todayIso } from "@/lib/format";
+import { areAmountsHidden, formatCompactCurrency, formatCurrency, formatDate, formatNumber, formatQuantity, MASK, todayIso } from "@/lib/format";
 
 interface AssetPriceChartProps {
   asset: Asset;
@@ -35,7 +35,7 @@ const shortDate = (iso: string, withYear: boolean) => {
 };
 const toNumber = (d: Decimal) => Number(d.toFixed(6));
 const tradeLabel = (m: TradeMarker) =>
-  `${formatNumber(m.quantity, Math.min(8, m.quantity.decimalPlaces()))} × ${formatCurrency(m.price)}`;
+  `${formatQuantity(m.quantity)} × ${formatCurrency(m.price)}`;
 
 /**
  * Precio del activo con un punto sobre la curva en cada compra y venta, y la
@@ -122,7 +122,7 @@ function Chart({
   const span = Math.max(...closesNum) - Math.min(...closesNum);
   const axisDecimals = Math.max(...closesNum) >= 1000 ? null : span < 2 ? 2 : span < 20 ? 1 : 0;
   const axisLabel = (v: number) =>
-    axisDecimals === null ? formatCompactCurrency(String(v)) : `${formatNumber(new Decimal(String(v)), axisDecimals)} €`;
+    areAmountsHidden() ? MASK : axisDecimals === null ? formatCompactCurrency(String(v)) : `${formatNumber(new Decimal(String(v)), axisDecimals)} €`;
   const hasSells = markers.some((m) => m.type === "sell");
   // Cada día con operaciones se dibuja una sola vez sobre la curva.
   const dots = [...markersByDate.entries()].map(([date, list]) => ({

@@ -13,7 +13,7 @@ import { VariationAmount, VariationBadge } from "@/components/variation-badge";
 import { simulateDca } from "@/domain/dca";
 import type { ClosePoint } from "@/domain/history";
 import { useAssetSearch } from "@/hooks/use-asset-search";
-import { formatCurrency, formatDate, formatNumber, formatPercent, todayIso } from "@/lib/format";
+import { formatCurrency, formatDate, formatPercent, formatQuantity, todayIso } from "@/lib/format";
 import { ASSET_TYPE_LABELS } from "@/lib/labels";
 import { parseDecimal } from "@/lib/parse";
 import { cn } from "@/lib/utils";
@@ -149,7 +149,7 @@ function Results({ result: r }: { result: NonNullable<ReturnType<typeof simulate
       <Card>
         <dl className="divide-y divide-border text-sm">
           <Row label="Aportado" value={formatCurrency(r.invested)} />
-          <Row label="Participaciones" value={formatNumber(r.quantity, 4)} />
+          <Row label="Participaciones" value={formatQuantity(r.quantity.toDecimalPlaces(4))} />
           <Row label="Precio medio de compra" value={formatCurrency(r.averagePrice)} />
           <Row label="Precio actual" value={formatCurrency(r.finalPrice)} />
           <Row

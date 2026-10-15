@@ -28,13 +28,41 @@ export function formatNumber(value: DecimalInput, decimals = 2, { signed = false
   return `${sign(rounded, signed)}${grouped}${fraction ? `,${fraction}` : ""}`;
 }
 
+/**
+ * Modo privado: con los importes ocultos, euros y cantidades se muestran como
+ * "•••" (los porcentajes siguen visibles). Lo activa PrivacyBoundary; las
+ * cifras hipotéticas (calculadoras) o las tarjetas usan `reveal`.
+ */
+export const MASK = "•••";
+let amountsHidden = false;
+
+export function setAmountsHidden(hidden: boolean) {
+  amountsHidden = hidden;
+}
+
+export const areAmountsHidden = () => amountsHidden;
+
+interface RevealOption {
+  /** Muestra la cifra aunque el modo privado esté activo. */
+  reveal?: boolean;
+}
+
 /** "1.234,56 €". Con `signed`, los positivos llevan "+". */
-export function formatCurrency(value: DecimalInput, { signed = false } = {}): string {
+export function formatCurrency(value: DecimalInput, { signed = false, reveal = false }: { signed?: boolean } & RevealOption = {}): string {
+  if (amountsHidden && !reveal) return `${MASK}${NBSP}€`;
   return `${formatNumber(value, 2, { signed })}${NBSP}€`;
 }
 
+/** Cantidad de participaciones con hasta 8 decimales ("12", "0,0215"). */
+export function formatQuantity(value: DecimalInput, { reveal = false }: RevealOption = {}): string {
+  if (amountsHidden && !reveal) return MASK;
+  const decimal = toDecimal(value);
+  return formatNumber(decimal, Math.min(8, decimal.decimalPlaces()));
+}
+
 /** Versión corta para ejes y etiquetas: "850 €", "1,5 mil €", "12 mil €", "1,2 M€". */
-export function formatCompactCurrency(value: DecimalInput): string {
+export function formatCompactCurrency(value: DecimalInput, { reveal = false }: RevealOption = {}): string {
+  if (amountsHidden && !reveal) return MASK;
   const decimal = toDecimal(value);
   const abs = decimal.abs();
   const compact = (scaled: Decimal, decimals: number) =>

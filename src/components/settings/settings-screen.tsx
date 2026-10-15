@@ -8,6 +8,8 @@ import { rememberAvatar } from "@/components/layout/settings-link";
 import { ThemeSelector } from "@/components/theme-selector";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { setPrivacy, usePrivacy } from "@/lib/privacy";
 import { getRepositories, type Repositories } from "@/data/repositories";
 import type { Settings } from "@/domain/models";
 import { useLiveQuery } from "@/hooks/use-live-query";
@@ -21,7 +23,7 @@ export function SettingsScreen() {
   const settings = useLiveQuery(loadSettings);
   return (
     <>
-      <PageHeader title="Ajustes" showSettings={false} />
+      <PageHeader title="Ajustes" showSettings={false} showPrivacy={false} />
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:gap-5 lg:grid-cols-2 lg:items-start">
         {settings.status === "ready" ? (
           <ProfileCard key={settings.data.profileName} settings={settings.data} />
@@ -34,6 +36,7 @@ export function SettingsScreen() {
             <p className="mt-1 mb-3 text-sm text-text-muted">Elige un tema o sigue el de tu dispositivo.</p>
             <ThemeSelector />
           </div>
+          <PrivacySwitch />
           <div>
             <h2 className="font-medium">Periodo por defecto</h2>
             <p className="mt-1 mb-3 text-sm text-text-muted">El que verás al abrir Inicio.</p>
@@ -60,6 +63,18 @@ export function SettingsScreen() {
         </Card>
       </div>
     </>
+  );
+}
+
+function PrivacySwitch() {
+  const hidden = usePrivacy();
+  return (
+    <Switch
+      label="Modo privado"
+      description="Oculta los importes (€ y cantidades) y deja los porcentajes. También desde el ojo de cada pantalla."
+      checked={hidden}
+      onCheckedChange={setPrivacy}
+    />
   );
 }
 

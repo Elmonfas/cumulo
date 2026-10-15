@@ -12,7 +12,7 @@ import { OperationDetail } from "@/components/operation-detail";
 import type { Transaction } from "@/domain/models";
 import { annualReturn, buyDetail, sellDetail } from "@/domain/performance";
 import { sortTransactions } from "@/domain/portfolio";
-import { formatCurrency, formatDate, formatNumber, formatPercent, formatTime, todayIso } from "@/lib/format";
+import { formatCurrency, formatDate, formatPercent, formatQuantity, formatTime, todayIso } from "@/lib/format";
 import { ASSET_TYPE_LABELS, TRANSACTION_TYPE_LABELS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
@@ -33,7 +33,7 @@ export function PositionDetail({ data, assetId }: { data: PortfolioData; assetId
   const annual = annualReturn(assetTransactions, valuation?.marketValue ?? new Decimal(0), todayIso());
 
   const rows: [string, React.ReactNode][] = [
-    ["Cantidad", formatNumber(position.quantity, Math.min(8, position.quantity.decimalPlaces()))],
+    ["Cantidad", formatQuantity(position.quantity)],
     ["Precio medio de compra", formatCurrency(position.averageCost)],
     ["Coste", formatCurrency(position.cost)],
     ["Precio actual", valuation?.price ? formatCurrency(valuation.price) : "—"],
@@ -112,7 +112,7 @@ export function PositionDetail({ data, assetId }: { data: PortfolioData; assetId
                       {TRANSACTION_TYPE_LABELS[t.type]} · {formatDate(t.date)}
                     </span>
                     <span className="block truncate text-xs text-text-muted tabular-nums">
-                      {formatNumber(new Decimal(t.quantity), Math.min(8, new Decimal(t.quantity).decimalPlaces()))} ×{" "}
+                      {formatQuantity(t.quantity)} ×{" "}
                       {formatCurrency(t.price)}
                     </span>
                   </span>

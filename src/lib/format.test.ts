@@ -88,3 +88,21 @@ describe("formatDate", () => {
     expect(() => formatDate("no-es-fecha")).toThrow(RangeError);
   });
 });
+
+describe("modo privado", () => {
+  it("oculta euros y cantidades pero no porcentajes, salvo con reveal", async () => {
+    const { setAmountsHidden, formatQuantity } = await import("./format");
+    setAmountsHidden(true);
+    try {
+      expect(formatCurrency("1234.5")).toBe(nb("••• €"));
+      expect(formatCurrency("1234.5", { reveal: true })).toBe(nb("1.234,50 €"));
+      expect(formatCompactCurrency("12000")).toBe("•••");
+      expect(formatQuantity("0.0215")).toBe("•••");
+      expect(formatPercent("0.032")).toBe(nb("+3,2 %"));
+    } finally {
+      setAmountsHidden(false);
+    }
+    expect(formatQuantity("0.0215")).toBe("0,0215");
+    expect(formatQuantity("12")).toBe("12");
+  });
+});

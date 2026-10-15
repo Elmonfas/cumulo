@@ -15,7 +15,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { VariationAmount, VariationBadge } from "@/components/variation-badge";
 import type { PositionValuation } from "@/domain/valuation";
 import { usePortfolio, type PortfolioData } from "@/hooks/use-portfolio";
-import { formatCurrency, formatNumber, formatPercent, todayIso } from "@/lib/format";
+import { formatCurrency, formatPercent, formatQuantity, todayIso } from "@/lib/format";
 import { annualReturn } from "@/domain/performance";
 import { ASSET_TYPE_LABELS } from "@/lib/labels";
 
@@ -25,7 +25,7 @@ import { RefreshPricesButton } from "./refresh-prices-button";
 const PositionDetail = dynamic(() => import("./position-detail").then((m) => m.PositionDetail), { ssr: false });
 
 const signedCurrency = (v: Decimal) => formatCurrency(v, { signed: true });
-const quantityText = (q: Decimal) => formatNumber(q, Math.min(8, q.decimalPlaces()));
+const quantityText = (q: Decimal) => formatQuantity(q);
 
 export function PortfolioScreen() {
   const portfolio = usePortfolio();

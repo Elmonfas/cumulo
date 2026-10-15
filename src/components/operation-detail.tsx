@@ -4,10 +4,10 @@ import { VariationAmount, VariationBadge } from "@/components/variation-badge";
 import type { Transaction } from "@/domain/models";
 import { buyDetail, sellDetail } from "@/domain/performance";
 import type { PortfolioState } from "@/domain/portfolio";
-import { formatCurrency, formatNumber, formatPercent, todayIso } from "@/lib/format";
+import { formatCurrency, formatNumber, formatPercent, formatQuantity, todayIso } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-const qty = (q: Decimal) => formatNumber(q, Math.min(8, q.decimalPlaces()));
+const qty = (q: Decimal) => formatQuantity(q);
 const signed = (v: Decimal) => formatCurrency(v, { signed: true });
 
 /** Cifras de una compra o venta concreta, sin adornos. */

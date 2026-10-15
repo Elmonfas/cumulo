@@ -17,7 +17,7 @@ import { buildPortfolio, sortTransactions, transactionTotal } from "@/domain/por
 import { useLiveQuery } from "@/hooks/use-live-query";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { OperationDetail } from "@/components/operation-detail";
-import { formatCurrency, formatDate, formatMonthYear, formatNumber } from "@/lib/format";
+import { formatCurrency, formatDate, formatMonthYear, formatQuantity } from "@/lib/format";
 import { CASH_TRANSACTION_TYPES, isAssetTransaction, TRANSACTION_TYPE_LABELS } from "@/lib/labels";
 
 
@@ -231,7 +231,7 @@ function TransactionRow({ transaction: t, asset, onSelect }: { transaction: Tran
   const Icon = CASH_ICONS[t.type];
   const title = asset?.name ?? TRANSACTION_TYPE_LABELS[t.type];
   const detail = isAssetTransaction(t.type)
-    ? `${formatNumber(new Decimal(t.quantity), Math.min(8, new Decimal(t.quantity).decimalPlaces()))} × ${formatCurrency(t.price)}`
+    ? `${formatQuantity(t.quantity)} × ${formatCurrency(t.price)}`
     : undefined;
 
   return (
