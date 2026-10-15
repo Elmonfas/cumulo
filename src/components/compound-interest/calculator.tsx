@@ -9,7 +9,13 @@ import { Switch } from "@/components/ui/switch";
 import { calculateCompoundInterest, type CompoundInterestResult } from "@/domain/compound-interest";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import { parseDecimal, parsePercent } from "@/lib/parse";
-import { GrowthChart } from "./growth-chart";
+import dynamic from "next/dynamic";
+
+// Recharts se carga aparte para no retrasar el primer pintado.
+const GrowthChart = dynamic(() => import("./growth-chart").then((m) => m.GrowthChart), {
+  ssr: false,
+  loading: () => <div className="h-56 animate-pulse rounded-2xl bg-surface-2 md:h-64" aria-hidden />,
+});
 
 interface FormState {
   initialCapital: string;

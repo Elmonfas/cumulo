@@ -2,6 +2,7 @@
 
 import Decimal from "decimal.js";
 import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, BadgeEuro, FileUp, Plus, Receipt, type LucideIcon } from "lucide-react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AssetAvatar } from "@/components/asset-avatar";
@@ -16,7 +17,10 @@ import { buildPortfolio, cashEffect, sortTransactions } from "@/domain/portfolio
 import { useLiveQuery } from "@/hooks/use-live-query";
 import { formatCurrency, formatDate, formatMonthYear, formatNumber } from "@/lib/format";
 import { isAssetTransaction, TRANSACTION_TYPE_LABELS } from "@/lib/labels";
-import { TransactionForm } from "./transaction-form";
+
+
+// El formulario (y su buscador) solo se descarga al abrir la hoja.
+const TransactionForm = dynamic(() => import("./transaction-form").then((m) => m.TransactionForm), { ssr: false });
 
 const loadData = async (repositories: Repositories) => {
   const [transactions, assets] = await Promise.all([repositories.transactions.list(), repositories.assets.list()]);

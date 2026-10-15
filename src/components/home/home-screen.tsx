@@ -2,13 +2,12 @@
 
 import Decimal from "decimal.js";
 import { FileUp, Plus, Sparkles } from "lucide-react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AnimatedAmount } from "@/components/animated-amount";
 import { AssetAvatar } from "@/components/asset-avatar";
-import { AllocationDonut } from "@/components/charts/allocation-donut";
 import { PeriodSelector } from "@/components/charts/period-selector";
-import { ValueChart } from "@/components/charts/value-chart";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/layout/page-header";
 import { QuoteFreshness } from "@/components/portfolio/quote-freshness";
@@ -26,6 +25,16 @@ import { usePriceHistories } from "@/hooks/use-price-histories";
 import { formatCurrency, todayIso } from "@/lib/format";
 import { ASSET_TYPE_LABELS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
+
+// Recharts se carga aparte para no retrasar el primer pintado.
+const ValueChart = dynamic(() => import("@/components/charts/value-chart").then((m) => m.ValueChart), {
+  ssr: false,
+  loading: () => <div className="h-52 animate-pulse rounded-2xl bg-surface-2 md:h-64" aria-hidden />,
+});
+const AllocationDonut = dynamic(() => import("@/components/charts/allocation-donut").then((m) => m.AllocationDonut), {
+  ssr: false,
+  loading: () => <div className="h-40 animate-pulse rounded-2xl bg-surface-2" aria-hidden />,
+});
 
 const loadSettings = (repositories: Repositories) => repositories.settings.get();
 const signedCurrency = (v: Decimal) => formatCurrency(v, { signed: true });

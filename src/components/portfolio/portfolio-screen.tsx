@@ -2,6 +2,7 @@
 
 import Decimal from "decimal.js";
 import { ChevronRight, PieChart, RefreshCw } from "lucide-react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useState } from "react";
 import { AnimatedAmount } from "@/components/animated-amount";
@@ -17,8 +18,10 @@ import { usePortfolio, type PortfolioData } from "@/hooks/use-portfolio";
 import { formatCurrency, formatNumber, formatPercent } from "@/lib/format";
 import { ASSET_TYPE_LABELS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
-import { PositionDetail } from "./position-detail";
+
 import { QuoteFreshness } from "./quote-freshness";
+
+const PositionDetail = dynamic(() => import("./position-detail").then((m) => m.PositionDetail), { ssr: false });
 
 const signedCurrency = (v: Decimal) => formatCurrency(v, { signed: true });
 const quantityText = (q: Decimal) => formatNumber(q, Math.min(8, q.decimalPlaces()));

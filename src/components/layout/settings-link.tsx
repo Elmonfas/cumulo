@@ -1,16 +1,35 @@
 "use client";
 
 import Link from "next/link";
-import type { Repositories } from "@/data/repositories";
-import { useLiveQuery } from "@/hooks/use-live-query";
+import { useEffect, useState } from "react";
 import { SETTINGS_NAV } from "./nav-items";
 
-const loadSettings = (repositories: Repositories) => repositories.settings.get();
-
-/** Acceso a Ajustes en la cabecera móvil; muestra la foto de perfil si existe. */
+/**
+ * Acceso a Ajustes en la cabecera móvil; muestra la foto de perfil si existe.
+ * Los repositorios se importan bajo demanda para no cargar IndexedDB en
+ * páginas que no lo usan (p. ej. la calculadora).
+ */
 export function SettingsLink() {
-  const settings = useLiveQuery(loadSettings);
-  const avatar = settings.status === "ready" ? settings.data.avatar : undefined;
+  const [avatar, setAvatar] = useState<string | undefined>();
+
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    let cancelled = false;
+    import("@/data/repositories").then(({ getRepositories, subscribeToDataChanges }) => {
+      if (cancelled) return;
+      const load = () =>
+        getRepositories()
+          .settings.get()
+          .then((s) => !cancelled && setAvatar(s.avatar));
+      void load();
+      unsubscribe = subscribeToDataChanges(() => void load());
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, []);
+
   const Icon = SETTINGS_NAV.icon;
   return (
     <Link
