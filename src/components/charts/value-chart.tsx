@@ -2,7 +2,7 @@
 
 import { Area, AreaChart, CartesianGrid, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { HistoryPoint } from "@/domain/history";
-import { formatCompactCurrency, formatCurrency, formatDate } from "@/lib/format";
+import { formatAxisDate, formatCompactCurrency, formatCurrency, formatDate, isLongRange } from "@/lib/format";
 import { ChartTooltipPill } from "./chart-tooltip";
 
 interface Point {
@@ -14,14 +14,12 @@ interface Point {
   investedLabel: string;
 }
 
-const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sept", "oct", "nov", "dic"];
-const shortDate = (iso: string, withYear: boolean) => {
-  const [y, m, d] = iso.split("-");
-  return withYear ? `${MONTHS[Number(m) - 1]} ${y.slice(2)}` : `${Number(d)} ${MONTHS[Number(m) - 1]}`;
-};
-
 /** Patrimonio (área con degradado de acento) y lo aportado (línea). */
-export function ValueChart({ points, investedLabel }: { points: HistoryPoint[]; investedLabel: string }) {
+export function ValueChart({ points: all, investedLabel }: { points: HistoryPoint[]; investedLabel: string }) {
+  // Los días previos a la primera compra no tienen nada que dibujar: fuera, o la
+  // gráfica arranca con un tramo plano en 0 y un salto vertical.
+  const firstHeld = all.findIndex((p) => !p.value.isZero() || !p.invested.isZero());
+  const points = firstHeld <= 0 ? all : all.slice(Math.min(firstHeld, all.length - 2));
   const data: Point[] = points.map((p) => ({
     date: p.date,
     value: Number(p.value.toFixed(2)),
@@ -29,7 +27,7 @@ export function ValueChart({ points, investedLabel }: { points: HistoryPoint[]; 
     valueLabel: formatCurrency(p.value),
     investedLabel: formatCurrency(p.invested),
   }));
-  const longRange = points.length > 1 && Date.parse(points.at(-1)!.date) - Date.parse(points[0].date) > 400 * 86_400_000;
+  const longRange = isLongRange(points[0]?.date, points.at(-1)?.date);
 
   return (
     <div className="h-52 w-full md:h-64" role="img" aria-label="Evolución del patrimonio en el periodo">
@@ -47,7 +45,7 @@ export function ValueChart({ points, investedLabel }: { points: HistoryPoint[]; 
             tickLine={false}
             axisLine={false}
             tick={{ fill: "var(--text-muted)", fontSize: 12 }}
-            tickFormatter={(d: string) => shortDate(d, longRange)}
+            tickFormatter={(d: string) => formatAxisDate(d, longRange)}
             minTickGap={24}
           />
           <YAxis

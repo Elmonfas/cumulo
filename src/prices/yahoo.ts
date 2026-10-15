@@ -2,6 +2,7 @@ import "server-only";
 import Decimal from "decimal.js";
 import YahooFinance from "yahoo-finance2";
 import type { AssetType } from "@/domain/models";
+import { type ChartResult, closesFromChart } from "./chart-closes";
 import { fxSymbol, normalizeCurrency } from "./fx";
 import type { AssetCandidate, PriceHistoryPoint, PriceQuote } from "./types";
 
@@ -20,11 +21,6 @@ interface SearchQuote {
   shortname?: string;
   exchange?: string;
   exchDisp?: string;
-}
-
-interface ChartResult {
-  meta: { currency?: string };
-  quotes: { date: Date; close: number | null }[];
 }
 
 const TYPE_BY_QUOTE_TYPE: Record<string, AssetType> = {
@@ -125,14 +121,9 @@ export async function quoteYahoo(symbols: string[]): Promise<Map<string, PriceQu
   return result;
 }
 
-const isoDay = (date: Date) => date.toISOString().slice(0, 10);
-
 async function dailyCloses(symbol: string, from: Date): Promise<{ currency: string; points: { date: string; close: Decimal }[] }> {
   const chart = (await yahoo.chart(symbol, { period1: from, interval: "1d" }, { validateResult: false })) as ChartResult;
-  const points = chart.quotes
-    .filter((q) => typeof q.close === "number")
-    .map((q) => ({ date: isoDay(q.date), close: new Decimal(String(q.close)) }));
-  return { currency: chart.meta.currency ?? "EUR", points };
+  return { currency: chart.meta.currency ?? "EUR", points: closesFromChart(chart) };
 }
 
 /** Cierres diarios en EUR desde `from`. */

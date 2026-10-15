@@ -122,7 +122,13 @@ function HomeContent({
   const period = chosen ?? defaultPeriod;
   const v = data.valuation;
   const today = todayIso();
-  const firstDate = useMemo(() => sortTransactions(data.transactions)[0]?.date ?? null, [data.transactions]);
+  // Activo enfocado en la gráfica principal (null = toda la cartera).
+  const [focusId, setFocusId] = useState<string | null>(null);
+  // "Todo" empieza en la primera operación de lo que se mira (la cartera o el activo).
+  const firstDate = useMemo(
+    () => sortTransactions(focusId ? data.transactions.filter((t) => t.assetId === focusId) : data.transactions)[0]?.date ?? null,
+    [data.transactions, focusId],
+  );
   const dates = useMemo(() => periodDates(period, today, firstDate), [period, today, firstDate]);
 
   const involvedAssets = useMemo(
@@ -136,8 +142,6 @@ function HomeContent({
   }, [dates]);
   const histories = usePriceHistories(involvedAssets, from);
 
-  // Activo enfocado en la gráfica principal (null = toda la cartera).
-  const [focusId, setFocusId] = useState<string | null>(null);
   const openAssets = useMemo(
     () => v.positions.map((p) => data.assets.get(p.position.assetId)).filter((a): a is NonNullable<typeof a> => Boolean(a)),
     [v.positions, data.assets],

@@ -1,7 +1,7 @@
 import Decimal from "decimal.js";
 import { describe, expect, it } from "vitest";
 import type { Transaction } from "./models";
-import { priceSeriesWithTrades } from "./trade-markers";
+import { averageCostSeries, priceSeriesWithTrades } from "./trade-markers";
 
 const close = (date: string, value: string) => ({ date, close: new Decimal(value) });
 const trade = (id: string, type: Transaction["type"], date: string, quantity: string, price: string): Transaction => ({
@@ -66,5 +66,24 @@ describe("priceSeriesWithTrades", () => {
   it("ignora operaciones que no son compra o venta y series vacías", () => {
     expect(priceSeriesWithTrades(closes, [trade("d", "dividend", "2026-10-05", "1", "3")]).markers).toEqual([]);
     expect(priceSeriesWithTrades([], [trade("b", "buy", "2026-10-05", "1", "3")])).toEqual({ points: [], markers: [] });
+  });
+});
+
+describe("averageCostSeries", () => {
+  it("sigue al precio medio de cada día: compras lo mueven, FIFO al vender, null sin posición", () => {
+    const transactions = [
+      trade("b1", "buy", "2026-10-01", "10", "100"),
+      trade("b2", "buy", "2026-10-05T10:00:00Z", "10", "120"),
+      // FIFO: se van los 10 a 100 y quedan los 10 a 120.
+      trade("s1", "sell", "2026-10-06", "10", "130"),
+      trade("s2", "sell", "2026-10-07", "10", "130"),
+    ];
+    const series = averageCostSeries(transactions, ["2026-09-30", "2026-10-02", "2026-10-05", "2026-10-06", "2026-10-07"]);
+    expect(series.map((v) => v?.toString() ?? null)).toEqual([null, "100", "110", "120", null]);
+  });
+
+  it("la comisión de compra entra en el precio medio", () => {
+    const series = averageCostSeries([{ ...trade("b", "buy", "2026-10-01", "4", "25"), fee: "2" }], ["2026-10-01"]);
+    expect(series[0]?.toString()).toBe("25.5");
   });
 });

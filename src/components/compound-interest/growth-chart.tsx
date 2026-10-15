@@ -15,6 +15,19 @@ interface Point {
   balanceLabel: string;
 }
 
+/** Marcas del eje en años redondos (0, 5, 10…), siempre con "Hoy" y el último año. */
+function yearTicks(years: number): number[] {
+  const step = [1, 2, 5, 10, 20, 25, 50].find((s) => years / s <= 5) ?? 100;
+  const ticks: number[] = [];
+  for (let year = 0; year <= years; year += step) ticks.push(year);
+  const last = ticks[ticks.length - 1];
+  if (last !== years) {
+    if (years - last < step / 2 && ticks.length > 1) ticks.pop();
+    ticks.push(years);
+  }
+  return ticks;
+}
+
 export function GrowthChart({ timeline }: { timeline: CompoundInterestYear[] }) {
   const data: Point[] = timeline.map((row) => ({
     year: row.year,
@@ -28,7 +41,7 @@ export function GrowthChart({ timeline }: { timeline: CompoundInterestYear[] }) 
   return (
     <div className="h-56 w-full md:h-64" role="img" aria-label="Evolución del capital aportado y de los intereses por año">
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={{ top: 8, right: 4, bottom: 0, left: 0 }}>
+        <AreaChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
           <defs>
             <linearGradient id="fill-contributed" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.35} />
@@ -42,11 +55,14 @@ export function GrowthChart({ timeline }: { timeline: CompoundInterestYear[] }) 
           <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" />
           <XAxis
             dataKey="year"
+            type="number"
+            domain={["dataMin", "dataMax"]}
             tickLine={false}
             axisLine={false}
             tick={{ fill: "var(--text-muted)", fontSize: 12 }}
             tickFormatter={(year: number) => (year === 0 ? "Hoy" : `${year}a`)}
-            minTickGap={16}
+            ticks={yearTicks(data[data.length - 1]?.year ?? 0)}
+            interval={0}
           />
           <YAxis
             tickLine={false}

@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 import type { ClosePoint } from "./history";
 import type { Transaction } from "./models";
+import { applyTransaction, createPortfolioState, sortTransactions } from "./portfolio";
 
 export interface TradeMarker {
   transactionId: string;
@@ -54,4 +55,25 @@ export function priceSeriesWithTrades(
     });
   }
   return { points, markers };
+}
+
+/**
+ * Precio medio de compra de la posición abierta en cada fecha (coste ÷
+ * cantidad, con comisiones), o null si ese día no había posición. Así la línea
+ * del precio medio sube o baja con cada compra en vez de ser la de hoy.
+ */
+export function averageCostSeries(transactions: readonly Transaction[], dates: readonly string[]): (Decimal | null)[] {
+  const sorted = sortTransactions(transactions);
+  const state = createPortfolioState();
+  let next = 0;
+  return dates.map((date) => {
+    while (next < sorted.length && day(sorted[next].date) <= date) applyTransaction(state, sorted[next++]);
+    let quantity = new Decimal(0);
+    let cost = new Decimal(0);
+    for (const position of state.positions.values()) {
+      quantity = quantity.plus(position.quantity);
+      cost = cost.plus(position.cost);
+    }
+    return quantity.gt(0) ? cost.div(quantity) : null;
+  });
 }

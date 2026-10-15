@@ -2,7 +2,7 @@
 
 import { Bar, BarChart, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { PositionValuation } from "@/domain/valuation";
-import { formatCurrency, formatPercent } from "@/lib/format";
+import { formatAxisPercent, formatCurrency, formatPercent } from "@/lib/format";
 import { ChartTooltipPill } from "./chart-tooltip";
 
 interface Bar {
@@ -29,10 +29,11 @@ export function PositionReturnsChart({
   const data: Bar[] = positions
     .filter((p) => p.unrealizedPct && p.unrealized)
     .sort((a, b) => b.unrealizedPct!.comparedTo(a.unrealizedPct!))
-    .slice(0, 8)
+    // En media tarjeta de móvil no caben más barras con su etiqueta legible.
+    .slice(0, 6)
     .map((p) => ({
       key: p.position.assetId,
-      label: tickerOf(p.position.assetId),
+      label: tickerOf(p.position.assetId).slice(0, positions.length > 4 ? 4 : 6),
       name: nameOf(p.position.assetId),
       pct: Number(p.unrealizedPct!.times(100).toFixed(2)),
       pctLabel: formatPercent(p.unrealizedPct!),
@@ -52,14 +53,14 @@ export function PositionReturnsChart({
             axisLine={false}
             interval={0}
             height={18}
-            tick={{ fill: "var(--text-muted)", fontSize: data.length > 4 ? 8 : 9 }}
+            tick={{ fill: "var(--text-muted)", fontSize: 9 }}
           />
           <YAxis
             tickLine={false}
             axisLine={false}
             width={36}
             tick={{ fill: "var(--text-muted)", fontSize: 10 }}
-            tickFormatter={(v: number) => `${Math.round(v)}%`}
+            tickFormatter={formatAxisPercent}
           />
           <ReferenceLine y={0} stroke="var(--border)" />
           <Tooltip

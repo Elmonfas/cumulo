@@ -26,7 +26,7 @@ La V1 trabaja solo en EUR:
 
 ## Cachés
 
-- **CDN (Vercel):** precios 20 s, búsqueda 1 h, histórico 6 h (`Cache-Control: s-maxage`).
+- **CDN (Vercel):** precios 20 s, búsqueda 1 h, histórico 1 h (`Cache-Control: s-maxage`). Yahoo deja sin cierre la última sesión durante horas: ese día se completa con el último precio de mercado.
 - **Navegador:** el último precio de cada activo se guarda en IndexedDB y se refresca si tiene más de 25 s, y cada 30 s con la app abierta y visible (y al volver a ella).
 - **Retraso de la fuente:** aun así no es tiempo real. Yahoo suele dar las bolsas europeas con unos 15 min de retraso y CoinGecko con 1–2 min; la app muestra siempre la hora de cada precio.
 - **Si una fuente falla**, se sigue mostrando el último precio guardado con su hora. Un precio nunca rompe la app.

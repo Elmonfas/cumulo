@@ -78,6 +78,29 @@ export function formatPercent(ratio: DecimalInput, { decimals = 1, signed = true
 }
 
 const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sept", "oct", "nov", "dic"];
+
+/** Etiqueta de eje de fechas: "15 oct", o "oct 26" en rangos largos. */
+export function formatAxisDate(isoDate: string, withYear: boolean): string {
+  const [y, m, d] = isoDate.split("-");
+  return withYear ? `${MONTHS[Number(m) - 1]} ${y.slice(2)}` : `${Number(d)} ${MONTHS[Number(m) - 1]}`;
+}
+
+/**
+ * ¿El eje debe llevar año? Si el rango pasa de ~13 meses, o si cruza de año y
+ * dura más de unos meses ("22 ene" sería ambiguo entre nov 25 y oct 26).
+ */
+export function isLongRange(first: string | undefined, last: string | undefined): boolean {
+  if (!first || !last) return false;
+  const days = (Date.parse(last) - Date.parse(first)) / 86_400_000;
+  return days > 400 || (first.slice(0, 4) !== last.slice(0, 4) && days > 120);
+}
+
+/** Etiqueta de eje en puntos porcentuales (geometría, no dinero): 25 → "25 %", −7 → "−7 %". */
+export function formatAxisPercent(points: number): string {
+  const rounded = Math.round(points);
+  return `${rounded < 0 ? "−" : ""}${Math.abs(rounded)}${NBSP}%`;
+}
+
 const MONTHS_LONG = [
   "enero",
   "febrero",

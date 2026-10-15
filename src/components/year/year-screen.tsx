@@ -17,7 +17,7 @@ import { portfolioHistory } from "@/domain/history";
 import { summarizeYear, yearCutoffs, yearsWithActivity, type YearSummary } from "@/domain/year";
 import { usePortfolio, type PortfolioData } from "@/hooks/use-portfolio";
 import { usePriceHistories } from "@/hooks/use-price-histories";
-import { formatCurrency, formatDate, formatPercent, todayIso } from "@/lib/format";
+import { formatAxisPercent, formatCurrency, formatDate, formatPercent, todayIso } from "@/lib/format";
 import { buildYearCard } from "@/lib/share-builders";
 import { cn } from "@/lib/utils";
 
@@ -150,7 +150,7 @@ function YearView({ summary: s, data, isCurrent }: { summary: YearSummary; data:
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={bars} margin={{ top: 6, right: 0, bottom: 0, left: 0 }}>
                 <XAxis dataKey="label" tickLine={false} axisLine={false} interval={0} tick={{ fill: "var(--text-muted)", fontSize: 11 }} />
-                <YAxis tickLine={false} axisLine={false} width={40} tick={{ fill: "var(--text-muted)", fontSize: 11 }} tickFormatter={(v: number) => `${Math.round(v)}%`} />
+                <YAxis tickLine={false} axisLine={false} width={40} tick={{ fill: "var(--text-muted)", fontSize: 11 }} tickFormatter={formatAxisPercent} />
                 <ReferenceLine y={0} stroke="var(--border)" />
                 <Tooltip
                   cursor={{ fill: "var(--surface-2)" }}

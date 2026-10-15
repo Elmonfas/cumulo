@@ -1,6 +1,6 @@
 import Decimal from "decimal.js";
 import { describe, expect, it } from "vitest";
-import { formatCompactCurrency, formatCurrency, formatDate, formatNumber, formatPercent } from "./format";
+import { formatAxisDate, formatAxisPercent, formatCompactCurrency, formatCurrency, formatDate, formatNumber, formatPercent, isLongRange } from "./format";
 
 // Los símbolos van tras un espacio duro (U+00A0).
 const nb = (s: string) => s.replace(/ /g, " ");
@@ -104,5 +104,22 @@ describe("modo privado", () => {
     }
     expect(formatQuantity("0.0215")).toBe("0,0215");
     expect(formatQuantity("12")).toBe("12");
+  });
+});
+
+describe("ejes de gráficas", () => {
+  it("porcentaje con signo menos tipográfico y espacio fino", () => {
+    expect(formatAxisPercent(25)).toBe("25 %");
+    expect(formatAxisPercent(-7.4)).toBe("−7 %");
+    expect(formatAxisPercent(-0.2)).toBe("0 %");
+  });
+
+  it("fechas con año solo cuando hace falta", () => {
+    expect(formatAxisDate("2026-01-22", false)).toBe("22 ene");
+    expect(formatAxisDate("2026-09-03", true)).toBe("sept 26");
+    expect(isLongRange("2026-01-01", "2026-10-16")).toBe(false);
+    expect(isLongRange("2025-11-03", "2026-10-16")).toBe(true);
+    expect(isLongRange("2025-12-20", "2026-01-15")).toBe(false);
+    expect(isLongRange("2024-01-01", "2025-06-01")).toBe(true);
   });
 });

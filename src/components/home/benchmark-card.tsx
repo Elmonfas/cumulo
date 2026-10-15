@@ -12,14 +12,9 @@ import type { Asset } from "@/domain/models";
 import { sortTransactions } from "@/domain/portfolio";
 import type { PortfolioData } from "@/hooks/use-portfolio";
 import { usePriceHistories } from "@/hooks/use-price-histories";
-import { formatCurrency, formatDate, formatNumber, formatPercent, todayIso } from "@/lib/format";
+import { formatAxisDate, formatAxisPercent, formatCurrency, formatDate, formatNumber, formatPercent, isLongRange, todayIso } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sept", "oct", "nov", "dic"];
-const shortDate = (iso: string) => {
-  const [y, m] = iso.split("-");
-  return `${MONTHS[Number(m) - 1]} ${y.slice(2)}`;
-};
 
 interface Point {
   date: string;
@@ -73,7 +68,7 @@ export function BenchmarkCard({ data }: { data: PortfolioData }) {
     const you = cumulativeReturn(lastMine);
     const index = cumulativeReturn(lastTheirs);
     const euros = lastMine.value.plus(lastMine.proceeds).minus(lastTheirs.value.plus(lastTheirs.proceeds));
-    return { failed: false as const, points, you, index, euros };
+    return { failed: false as const, points, you, index, euros, longRange: isLongRange(dates[0], dates.at(-1)) };
   }, [histories, benchmark, data.prices, data.transactions, dates, trades]);
 
   const label = BENCHMARKS.find((b) => b.id === benchmark)!.label;
@@ -129,8 +124,8 @@ export function BenchmarkCard({ data }: { data: PortfolioData }) {
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={view.points} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
                 <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" />
-                <XAxis dataKey="date" tickLine={false} axisLine={false} minTickGap={32} tick={{ fill: "var(--text-muted)", fontSize: 11 }} tickFormatter={shortDate} />
-                <YAxis tickLine={false} axisLine={false} width={44} tick={{ fill: "var(--text-muted)", fontSize: 11 }} tickFormatter={(v: number) => `${Math.round(v)}%`} />
+                <XAxis dataKey="date" tickLine={false} axisLine={false} minTickGap={32} tick={{ fill: "var(--text-muted)", fontSize: 11 }} tickFormatter={(d: string) => formatAxisDate(d, view.longRange)} />
+                <YAxis tickLine={false} axisLine={false} width={44} tick={{ fill: "var(--text-muted)", fontSize: 11 }} tickFormatter={formatAxisPercent} />
                 <ReferenceLine y={0} stroke="var(--border)" />
                 <Tooltip
                   cursor={{ stroke: "var(--border)" }}

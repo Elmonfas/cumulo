@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     const points = parsed.source === "yahoo" ? await historyYahoo(parsed.id, from) : await historyCoinGecko(parsed.id, from);
     const body: PriceHistoryResponse = { key, points };
     return NextResponse.json(body, {
-      headers: { "Cache-Control": "public, s-maxage=21600, stale-while-revalidate=86400" },
+      headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400" },
     });
   } catch {
     return NextResponse.json({ error: "La fuente de precios no responde." }, { status: 502 });

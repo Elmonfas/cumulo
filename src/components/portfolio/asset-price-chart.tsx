@@ -2,15 +2,15 @@
 
 import Decimal from "decimal.js";
 import { useMemo, useState } from "react";
-import { Area, AreaChart, CartesianGrid, ReferenceDot, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, Line, ReferenceDot, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ChartTooltipPill, type TooltipRow } from "@/components/charts/chart-tooltip";
 import { PeriodSelector } from "@/components/charts/period-selector";
 import { VariationBadge } from "@/components/variation-badge";
 import { addDays, periodStart } from "@/domain/history";
 import type { Asset, PeriodKey, Transaction } from "@/domain/models";
-import { priceSeriesWithTrades, type TradeMarker } from "@/domain/trade-markers";
+import { averageCostSeries, priceSeriesWithTrades, type TradeMarker } from "@/domain/trade-markers";
 import { usePriceHistories } from "@/hooks/use-price-histories";
-import { areAmountsHidden, formatCompactCurrency, formatCurrency, formatDate, formatNumber, formatQuantity, MASK, todayIso } from "@/lib/format";
+import { areAmountsHidden, formatAxisDate, formatCompactCurrency, formatCurrency, formatDate, formatNumber, formatQuantity, isLongRange, MASK, todayIso } from "@/lib/format";
 
 interface AssetPriceChartProps {
   asset: Asset;
@@ -25,14 +25,12 @@ interface Point {
   // Número solo para la geometría; las etiquetas salen de Decimal.
   close: number;
   label: string;
+  /** Precio medio de la posición ese día (null sin posición o fuera de escala). */
+  avg: number | null;
+  avgLabel: string | null;
 }
 
 const PERIODS: PeriodKey[] = ["1W", "1M", "YTD", "1Y", "ALL"];
-const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sept", "oct", "nov", "dic"];
-const shortDate = (iso: string, withYear: boolean) => {
-  const [y, m, d] = iso.split("-");
-  return withYear ? `${MONTHS[Number(m) - 1]} ${y.slice(2)}` : `${Number(d)} ${MONTHS[Number(m) - 1]}`;
-};
 const toNumber = (d: Decimal) => Number(d.toFixed(6));
 const tradeLabel = (m: TradeMarker) =>
   `${formatQuantity(m.quantity)} × ${formatCurrency(m.price)}`;
@@ -93,6 +91,7 @@ export function AssetPriceChart({ asset, transactions, currentPrice, averageCost
           asset={asset}
           points={series.points}
           markers={series.markers}
+          trades={trades}
           averageCost={averageCost}
           // En periodos cortos la línea del precio medio no debe aplastar la curva.
           extendToAverage={period === "1Y" || period === "ALL"}
@@ -109,24 +108,41 @@ function Chart({
   asset,
   points,
   markers,
+  trades,
   averageCost,
   extendToAverage,
 }: {
   asset: Asset;
   points: { date: string; close: Decimal }[];
   markers: TradeMarker[];
+  trades: Transaction[];
   averageCost: Decimal | null;
   /** Ampliar el eje para que siempre se vea la línea del precio medio. */
   extendToAverage: boolean;
 }) {
-  const data: Point[] = points.map((p) => ({ date: p.date, close: toNumber(p.close), label: formatCurrency(p.close) }));
+  const averages = averageCostSeries(trades, points.map((p) => p.date));
+  const closesNum = points.map((p) => toNumber(p.close));
+  const low = Math.min(...closesNum);
+  const high = Math.max(...closesNum);
+  const span = high - low;
+  // En periodos cortos la línea del precio medio no debe aplastar la curva: si
+  // se sale mucho de la escala del precio, no se dibuja (la leyenda lo dice).
+  const avgFits =
+    extendToAverage ||
+    averages.every((a) => !a || (toNumber(a) >= low - span * 0.25 && toNumber(a) <= high + span * 0.25));
+  const data: Point[] = points.map((p, i) => ({
+    date: p.date,
+    close: closesNum[i],
+    label: formatCurrency(p.close),
+    avg: avgFits && averages[i] ? toNumber(averages[i]) : null,
+    avgLabel: averages[i] ? formatCurrency(averages[i]) : null,
+  }));
+  const showAvgLine = data.some((d) => d.avg !== null);
   const markersByDate = new Map<string, TradeMarker[]>();
   for (const m of markers) markersByDate.set(m.date, [...(markersByDate.get(m.date) ?? []), m]);
-  const longRange = Date.parse(data.at(-1)!.date) - Date.parse(data[0].date) > 400 * 86_400_000;
+  const longRange = isLongRange(data[0].date, data.at(-1)!.date);
   // Con rangos estrechos (p. ej. una semana) el formato compacto repetiría etiquetas: se usan decimales.
-  const closesNum = data.map((d) => d.close);
-  const span = Math.max(...closesNum) - Math.min(...closesNum);
-  const axisDecimals = Math.max(...closesNum) >= 1000 ? null : span < 2 ? 2 : span < 20 ? 1 : 0;
+  const axisDecimals = high >= 1000 ? null : span < 2 ? 2 : span < 20 ? 1 : 0;
   const axisLabel = (v: number) =>
     areAmountsHidden() ? MASK : axisDecimals === null ? formatCompactCurrency(String(v)) : `${formatNumber(new Decimal(String(v)), axisDecimals)} €`;
   const hasSells = markers.some((m) => m.type === "sell");
@@ -155,7 +171,7 @@ function Chart({
               tickLine={false}
               axisLine={false}
               tick={{ fill: "var(--text-muted)", fontSize: 11 }}
-              tickFormatter={(d: string) => shortDate(d, longRange)}
+              tickFormatter={(d: string) => formatAxisDate(d, longRange)}
               minTickGap={24}
             />
             <YAxis
@@ -179,18 +195,21 @@ function Chart({
                     dotClassName: m.type === "buy" ? "bg-accent" : "bg-series-2",
                   });
                 }
-                if (averageCost) rows.push({ label: "Tu precio medio", value: formatCurrency(averageCost) });
+                if (point.avgLabel) rows.push({ label: "Tu precio medio", value: point.avgLabel, dotClassName: "bg-series-2" });
                 return <ChartTooltipPill title={formatDate(point.date)} rows={rows} />;
               }}
             />
             <Area type="monotone" dataKey="close" stroke="var(--accent)" strokeWidth={2} fill="url(#fill-asset-price)" animationDuration={200} />
-            {averageCost && (
-              <ReferenceLine
-                y={toNumber(averageCost)}
+            {showAvgLine && (
+              <Line
+                type="stepAfter"
+                dataKey="avg"
                 stroke="var(--series-2)"
                 strokeDasharray="4 4"
                 strokeWidth={1.5}
-                ifOverflow={extendToAverage ? "extendDomain" : "hidden"}
+                dot={false}
+                activeDot={false}
+                isAnimationActive={false}
               />
             )}
             {dots.map((d) => (
@@ -223,7 +242,7 @@ function Chart({
         {averageCost && (
           <li className="flex items-center gap-1.5">
             <span className="h-0 w-4 border-t-[1.5px] border-dashed border-series-2" aria-hidden />
-            Tu precio medio · {formatCurrency(averageCost)}
+            Tu precio medio hoy · {formatCurrency(averageCost)}
           </li>
         )}
       </ul>

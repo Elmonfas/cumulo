@@ -80,7 +80,7 @@ export function DcaSimulator() {
             setHistory(c ? { status: "loading" } : { status: "idle" });
           }}
         />
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 items-start gap-3">
           <DecimalField label="Cada mes" suffix="€" value={amount} onValueChange={setAmount} error={parsed.errors.amount} />
           <DecimalField label="Comisión" suffix="€" value={fee} onValueChange={setFee} error={parsed.errors.fee} hint="Por compra" />
         </div>
