@@ -11,7 +11,8 @@ import { checkAlerts } from "@/services/alerts";
 import { refreshPrices } from "@/services/prices";
 import { useLiveQuery } from "./use-live-query";
 
-const REFRESH_INTERVAL_MS = 120_000;
+/** Con la app abierta y visible, los precios se piden cada 30 s. */
+export const REFRESH_INTERVAL_MS = 30_000;
 
 const loadAll = async (repositories: Repositories) => {
   const [transactions, assets, prices] = await Promise.all([
@@ -30,6 +31,8 @@ export interface PortfolioData {
   valuation: PortfolioValuation;
   /** Hora de la cotización más antigua entre las posiciones abiertas. */
   oldestQuote: string | null;
+  /** Cuándo se pidieron por última vez los precios de las posiciones abiertas. */
+  lastFetchedAt: string | null;
 }
 
 export type PortfolioStatus =
@@ -62,6 +65,10 @@ export function usePortfolio() {
       .map((p) => priceMap.get(p.position.assetId)?.updatedAt)
       .filter((t): t is string => Boolean(t))
       .sort();
+    const fetchTimes = valuation.positions
+      .map((p) => priceMap.get(p.position.assetId)?.fetchedAt)
+      .filter((t): t is string => Boolean(t))
+      .sort();
     return {
       status: "ready",
       data: {
@@ -71,6 +78,7 @@ export function usePortfolio() {
         state,
         valuation,
         oldestQuote: quoteTimes[0] ?? null,
+        lastFetchedAt: fetchTimes.at(-1) ?? null,
       },
     };
   }, [live]);

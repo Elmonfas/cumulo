@@ -47,7 +47,7 @@ describe("refreshPrices", () => {
     const assets = await repos.assets.list();
     await refreshPrices(repos, assets, { fetchPrices: ok, now: NOW });
     const second = vi.fn(ok);
-    await refreshPrices(repos, assets, { fetchPrices: second, now: NOW + 30_000 });
+    await refreshPrices(repos, assets, { fetchPrices: second, now: NOW + 10_000 });
     expect(second).toHaveBeenCalledWith(["coingecko:bitcoin"]);
     await refreshPrices(repos, assets, { fetchPrices: second, now: NOW + 120_000 });
     expect(second.mock.lastCall![0].toSorted()).toEqual(["coingecko:bitcoin", "yahoo:VWCE.DE"]);

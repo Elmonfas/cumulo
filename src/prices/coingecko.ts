@@ -42,7 +42,7 @@ export async function quoteCoinGecko(ids: string[]): Promise<Map<string, PriceQu
   if (ids.length === 0) return map;
   const result = await get<SimplePrice>(
     `/simple/price?ids=${ids.map(encodeURIComponent).join(",")}&vs_currencies=eur&include_last_updated_at=true&precision=full`,
-    60,
+    20,
   );
   for (const id of ids) {
     const entry = result[id];

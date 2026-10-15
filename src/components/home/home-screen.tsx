@@ -12,6 +12,7 @@ import { EmptyState } from "@/components/empty-state";
 import { LogoLockup } from "@/components/logo";
 import { PageHeader } from "@/components/layout/page-header";
 import { QuoteFreshness } from "@/components/portfolio/quote-freshness";
+import { RefreshPricesButton } from "@/components/portfolio/refresh-prices-button";
 import { TriggeredAlerts } from "./triggered-alerts";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -89,6 +90,8 @@ export function HomeScreen() {
           <HomeContent
             data={portfolio.data}
             failed={portfolio.failedIds.length}
+            refreshing={portfolio.refreshing}
+            onRefresh={() => portfolio.refresh(true)}
             defaultPeriod={settings.status === "ready" ? settings.data.defaultPeriod : "1M"}
           />
         ))}
@@ -96,7 +99,19 @@ export function HomeScreen() {
   );
 }
 
-function HomeContent({ data, failed, defaultPeriod }: { data: PortfolioData; failed: number; defaultPeriod: PeriodKey }) {
+function HomeContent({
+  data,
+  failed,
+  defaultPeriod,
+  refreshing,
+  onRefresh,
+}: {
+  data: PortfolioData;
+  failed: number;
+  defaultPeriod: PeriodKey;
+  refreshing: boolean;
+  onRefresh: () => void;
+}) {
   const [chosen, setChosen] = useState<PeriodKey | null>(null);
   const period = chosen ?? defaultPeriod;
   const v = data.valuation;
@@ -134,7 +149,10 @@ function HomeContent({ data, failed, defaultPeriod }: { data: PortfolioData; fai
     <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:gap-5">
       <TriggeredAlerts />
       <Card>
-        <p className="text-sm text-text-muted">Valor de la cartera</p>
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-sm text-text-muted">Valor de la cartera</p>
+          <RefreshPricesButton refreshing={refreshing} lastFetchedAt={data.lastFetchedAt} onRefresh={onRefresh} />
+        </div>
         <div className="@container">
           <AnimatedAmount value={v.totalValue} className="hero-figure mt-1 block whitespace-nowrap" />
         </div>

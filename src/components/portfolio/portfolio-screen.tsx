@@ -1,7 +1,7 @@
 "use client";
 
 import Decimal from "decimal.js";
-import { ChevronRight, PieChart, RefreshCw } from "lucide-react";
+import { ChevronRight, PieChart } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -9,7 +9,7 @@ import { AnimatedAmount } from "@/components/animated-amount";
 import { AssetAvatar } from "@/components/asset-avatar";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/layout/page-header";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Sheet } from "@/components/ui/sheet";
 import { VariationAmount, VariationBadge } from "@/components/variation-badge";
@@ -18,9 +18,9 @@ import { usePortfolio, type PortfolioData } from "@/hooks/use-portfolio";
 import { formatCurrency, formatNumber, formatPercent, todayIso } from "@/lib/format";
 import { annualReturn } from "@/domain/performance";
 import { ASSET_TYPE_LABELS } from "@/lib/labels";
-import { cn } from "@/lib/utils";
 
 import { QuoteFreshness } from "./quote-freshness";
+import { RefreshPricesButton } from "./refresh-prices-button";
 
 const PositionDetail = dynamic(() => import("./position-detail").then((m) => m.PositionDetail), { ssr: false });
 
@@ -91,9 +91,7 @@ function PortfolioContent({
       <Card>
         <div className="flex items-start justify-between gap-3">
           <p className="text-sm text-text-muted">Valor de la cartera</p>
-          <Button variant="ghost" size="icon-sm" onClick={onRefresh} disabled={refreshing} aria-label="Actualizar precios">
-            <RefreshCw className={cn(refreshing && "animate-spin")} aria-hidden />
-          </Button>
+          <RefreshPricesButton refreshing={refreshing} lastFetchedAt={data.lastFetchedAt} onRefresh={onRefresh} />
         </div>
         <div className="@container">
           <AnimatedAmount value={v.totalValue} className="hero-figure mt-1 block whitespace-nowrap" />

@@ -3,8 +3,8 @@ import type { Repositories } from "@/data/repositories";
 import type { Asset, PriceCacheEntry } from "@/domain/models";
 import { priceKey, type PricesResponse } from "@/prices/types";
 
-/** Un precio se considera fresco durante 90 s (caché de 1–2 min). */
-export const PRICE_TTL_MS = 90_000;
+/** Un precio se considera fresco 25 s: el refresco de cada 30 s siempre trae uno nuevo. */
+export const PRICE_TTL_MS = 25_000;
 const CHUNK = 50;
 
 export type FetchPrices = (keys: string[]) => Promise<PricesResponse>;

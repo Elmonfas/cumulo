@@ -82,7 +82,7 @@ Reglas:
 - Interés compuesto: capitalización mensual, aportación al final de cada mes, inflación opcional para mostrar el valor real.
 
 ## Precios
-- Cripto: API de CoinGecko (clave demo en `.env`), caché de 1–2 min.
+- Cripto: API de CoinGecko (clave demo en `.env`). Con la app abierta, los precios se refrescan cada 30 s (caché de 25 s en el navegador y 20 s en el CDN).
 - Acciones/ETF: primero ISIN → ticker con la API de OpenFIGI, y después la cotización a través de `/api/prices` (yahoo-finance2 o la mejor fuente gratuita que verifiques en la Fase 4; documenta la elección y sus límites).
 - Si una fuente falla, se muestra el último precio guardado con su hora. Un precio jamás rompe la app.
 
