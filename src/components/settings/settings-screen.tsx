@@ -4,6 +4,7 @@ import { Download, ShieldCheck, Trash2, Upload, UserRound } from "lucide-react";
 import { useRef, useState } from "react";
 import { PeriodSelector } from "@/components/charts/period-selector";
 import { PageHeader } from "@/components/layout/page-header";
+import { rememberAvatar } from "@/components/layout/settings-link";
 import { ThemeSelector } from "@/components/theme-selector";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -72,6 +73,7 @@ function ProfileCard({ settings }: { settings: Settings }) {
     try {
       setError(null);
       await repositories().update({ avatar: await squareThumbnail(file) });
+      rememberAvatar(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo usar la imagen.");
     }
@@ -122,7 +124,10 @@ function ProfileCard({ settings }: { settings: Settings }) {
         </div>
       </div>
       {settings.avatar && (
-        <Button variant="ghost" size="sm" className="mt-3" onClick={() => repositories().update({ avatar: undefined })}>
+        <Button variant="ghost" size="sm" className="mt-3" onClick={() => {
+            rememberAvatar(false);
+            void repositories().update({ avatar: undefined });
+          }}>
           Quitar foto
         </Button>
       )}
@@ -159,6 +164,7 @@ function DataCard() {
     setBusy(true);
     try {
       await restoreBackup(getRepositories(), summary.data);
+      rememberAvatar(Boolean(summary.data.settings.avatar));
       setRestore({ status: "done", message: `Backup restaurado: ${summary.transactions} operaciones y ${summary.assets} activos.` });
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo restaurar.");
@@ -175,6 +181,7 @@ function DataCard() {
     }
     setBusy(true);
     await wipeAllData(getRepositories());
+    rememberAvatar(false);
     setBusy(false);
     setConfirmWipe(false);
     setRestore({ status: "done", message: "Se han borrado todos los datos de este navegador." });

@@ -3,6 +3,7 @@
 import type Decimal from "decimal.js";
 import { useMemo, useState } from "react";
 import { AnimatedAmount } from "@/components/animated-amount";
+import { LazyVisible } from "@/components/lazy-visible";
 import { Card } from "@/components/ui/card";
 import { DecimalField } from "@/components/ui/decimal-field";
 import { Switch } from "@/components/ui/switch";
@@ -155,7 +156,9 @@ function Results({ result }: { result: CompoundInterestResult }) {
         </dl>
 
         <div className="mt-5 -mx-1">
-          <GrowthChart timeline={result.timeline} />
+          <LazyVisible placeholder={<div className="h-56 rounded-2xl bg-surface-2 md:h-64" aria-hidden />}>
+            <GrowthChart timeline={result.timeline} />
+          </LazyVisible>
         </div>
       </Card>
 

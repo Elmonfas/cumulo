@@ -4,15 +4,36 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { SETTINGS_NAV } from "./nav-items";
 
+/** Marca local: solo si hay foto merece la pena cargar IndexedDB en la cabecera. */
+export const HAS_AVATAR_KEY = "cumulo:has-avatar";
+
+export function rememberAvatar(hasAvatar: boolean) {
+  try {
+    if (hasAvatar) localStorage.setItem(HAS_AVATAR_KEY, "1");
+    else localStorage.removeItem(HAS_AVATAR_KEY);
+  } catch {
+    // Sin almacenamiento: la cabecera mostrará el icono.
+  }
+}
+
+function mayHaveAvatar() {
+  try {
+    return localStorage.getItem(HAS_AVATAR_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Acceso a Ajustes en la cabecera móvil; muestra la foto de perfil si existe.
- * Los repositorios se importan bajo demanda para no cargar IndexedDB en
- * páginas que no lo usan (p. ej. la calculadora).
+ * Los repositorios se importan bajo demanda, y solo si hay foto, para no
+ * cargar IndexedDB en páginas que no lo usan (p. ej. la calculadora).
  */
 export function SettingsLink() {
   const [avatar, setAvatar] = useState<string | undefined>();
 
   useEffect(() => {
+    if (!mayHaveAvatar()) return;
     let unsubscribe: (() => void) | undefined;
     let cancelled = false;
     import("@/data/repositories").then(({ getRepositories, subscribeToDataChanges }) => {
@@ -20,7 +41,11 @@ export function SettingsLink() {
       const load = () =>
         getRepositories()
           .settings.get()
-          .then((s) => !cancelled && setAvatar(s.avatar));
+          .then((s) => {
+            if (cancelled) return;
+            setAvatar(s.avatar);
+            if (!s.avatar) rememberAvatar(false);
+          });
       void load();
       unsubscribe = subscribeToDataChanges(() => void load());
     });
