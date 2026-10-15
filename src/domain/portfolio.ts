@@ -123,104 +123,114 @@ function validate(t: Transaction) {
   }
 }
 
-export function buildPortfolio(transactions: readonly Transaction[]): PortfolioState {
-  const positions = new Map<string, Position>();
-  let cash = new Decimal(0);
-  let netDeposits = new Decimal(0);
-  let realizedGain = new Decimal(0);
-  let dividends = new Decimal(0);
-  let fees = new Decimal(0);
-
-  const positionFor = (assetId: string) => {
-    let position = positions.get(assetId);
-    if (!position) {
-      position = {
-        assetId,
-        quantity: new Decimal(0),
-        cost: new Decimal(0),
-        averageCost: new Decimal(0),
-        realizedGain: new Decimal(0),
-        lots: [],
-      };
-      positions.set(assetId, position);
-    }
-    return position;
+export function createPortfolioState(): PortfolioState {
+  return {
+    positions: new Map(),
+    cash: new Decimal(0),
+    netDeposits: new Decimal(0),
+    realizedGain: new Decimal(0),
+    dividends: new Decimal(0),
+    fees: new Decimal(0),
   };
+}
 
-  for (const t of sortTransactions(transactions)) {
-    validate(t);
-    const amount = transactionAmount(t);
-    const charges = new Decimal(t.fee).plus(t.tax);
+function positionFor(state: PortfolioState, assetId: string): Position {
+  let position = state.positions.get(assetId);
+  if (!position) {
+    position = {
+      assetId,
+      quantity: new Decimal(0),
+      cost: new Decimal(0),
+      averageCost: new Decimal(0),
+      realizedGain: new Decimal(0),
+      lots: [],
+    };
+    state.positions.set(assetId, position);
+  }
+  return position;
+}
 
-    switch (t.type) {
-      case "deposit":
-        cash = cash.plus(amount).minus(charges);
-        netDeposits = netDeposits.plus(amount);
-        fees = fees.plus(charges);
-        break;
-      case "withdrawal":
-        cash = cash.minus(amount).minus(charges);
-        netDeposits = netDeposits.minus(amount);
-        fees = fees.plus(charges);
-        break;
-      case "dividend": {
-        const net = amount.minus(charges);
-        cash = cash.plus(net);
-        dividends = dividends.plus(net);
-        break;
-      }
-      case "fee":
-        cash = cash.minus(amount).minus(charges);
-        fees = fees.plus(amount).plus(charges);
-        break;
-      case "buy": {
-        const position = positionFor(t.assetId!);
-        const cost = amount.plus(charges);
-        position.lots.push({ transactionId: t.id, date: t.date, quantity: new Decimal(t.quantity), cost });
-        position.quantity = position.quantity.plus(t.quantity);
-        position.cost = position.cost.plus(cost);
-        cash = cash.minus(cost);
-        break;
-      }
-      case "sell": {
-        const position = positionFor(t.assetId!);
-        let remaining = new Decimal(t.quantity);
-        if (remaining.gt(position.quantity)) throw new OversellError(t, position.quantity);
+/**
+ * Aplica una operación al estado (lo modifica). Las operaciones deben llegar
+ * en el orden de `sortTransactions`.
+ */
+export function applyTransaction(state: PortfolioState, t: Transaction): void {
+  validate(t);
+  const amount = transactionAmount(t);
+  const charges = new Decimal(t.fee).plus(t.tax);
 
-        let consumedCost = new Decimal(0);
-        while (remaining.gt(0)) {
-          const lot = position.lots[0];
-          if (lot.quantity.lte(remaining)) {
-            consumedCost = consumedCost.plus(lot.cost);
-            remaining = remaining.minus(lot.quantity);
-            position.lots.shift();
-          } else {
-            const partCost = lot.cost.times(remaining).div(lot.quantity);
-            consumedCost = consumedCost.plus(partCost);
-            lot.cost = lot.cost.minus(partCost);
-            lot.quantity = lot.quantity.minus(remaining);
-            remaining = new Decimal(0);
-          }
-        }
-
-        const proceeds = amount.minus(charges);
-        const gain = proceeds.minus(consumedCost);
-        position.quantity = position.quantity.minus(t.quantity);
-        position.cost = position.lots.reduce((sum, lot) => sum.plus(lot.cost), new Decimal(0));
-        position.realizedGain = position.realizedGain.plus(gain);
-        realizedGain = realizedGain.plus(gain);
-        cash = cash.plus(proceeds);
-        break;
-      }
+  switch (t.type) {
+    case "deposit":
+      state.cash = state.cash.plus(amount).minus(charges);
+      state.netDeposits = state.netDeposits.plus(amount);
+      state.fees = state.fees.plus(charges);
+      break;
+    case "withdrawal":
+      state.cash = state.cash.minus(amount).minus(charges);
+      state.netDeposits = state.netDeposits.minus(amount);
+      state.fees = state.fees.plus(charges);
+      break;
+    case "dividend": {
+      const net = amount.minus(charges);
+      state.cash = state.cash.plus(net);
+      state.dividends = state.dividends.plus(net);
+      break;
     }
+    case "fee":
+      state.cash = state.cash.minus(amount).minus(charges);
+      state.fees = state.fees.plus(amount).plus(charges);
+      break;
+    case "buy": {
+      const position = positionFor(state, t.assetId!);
+      const cost = amount.plus(charges);
+      position.lots.push({ transactionId: t.id, date: t.date, quantity: new Decimal(t.quantity), cost });
+      position.quantity = position.quantity.plus(t.quantity);
+      position.cost = position.cost.plus(cost);
+      state.cash = state.cash.minus(cost);
+      break;
+    }
+    case "sell": {
+      const position = positionFor(state, t.assetId!);
+      let remaining = new Decimal(t.quantity);
+      if (remaining.gt(position.quantity)) throw new OversellError(t, position.quantity);
 
-    if (t.assetId && ASSET_TYPES.includes(t.type)) {
-      const position = positions.get(t.assetId)!;
-      position.averageCost = position.quantity.isZero() ? new Decimal(0) : position.cost.div(position.quantity);
+      let consumedCost = new Decimal(0);
+      while (remaining.gt(0)) {
+        const lot = position.lots[0];
+        if (lot.quantity.lte(remaining)) {
+          consumedCost = consumedCost.plus(lot.cost);
+          remaining = remaining.minus(lot.quantity);
+          position.lots.shift();
+        } else {
+          const partCost = lot.cost.times(remaining).div(lot.quantity);
+          consumedCost = consumedCost.plus(partCost);
+          lot.cost = lot.cost.minus(partCost);
+          lot.quantity = lot.quantity.minus(remaining);
+          remaining = new Decimal(0);
+        }
+      }
+
+      const proceeds = amount.minus(charges);
+      const gain = proceeds.minus(consumedCost);
+      position.quantity = position.quantity.minus(t.quantity);
+      position.cost = position.lots.reduce((sum, lot) => sum.plus(lot.cost), new Decimal(0));
+      position.realizedGain = position.realizedGain.plus(gain);
+      state.realizedGain = state.realizedGain.plus(gain);
+      state.cash = state.cash.plus(proceeds);
+      break;
     }
   }
 
-  return { positions, cash, netDeposits, realizedGain, dividends, fees };
+  if (t.assetId && ASSET_TYPES.includes(t.type)) {
+    const position = state.positions.get(t.assetId)!;
+    position.averageCost = position.quantity.isZero() ? new Decimal(0) : position.cost.div(position.quantity);
+  }
+}
+
+export function buildPortfolio(transactions: readonly Transaction[]): PortfolioState {
+  const state = createPortfolioState();
+  for (const t of sortTransactions(transactions)) applyTransaction(state, t);
+  return state;
 }
 
 /** Posiciones con cantidad > 0. */
