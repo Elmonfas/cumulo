@@ -40,6 +40,11 @@ const AllocationDonut = dynamic(() => import("@/components/charts/allocation-don
   loading: () => <div className="h-40 animate-pulse rounded-2xl bg-surface-2" aria-hidden />,
 });
 
+const BenchmarkCard = dynamic(() => import("./benchmark-card").then((m) => m.BenchmarkCard), {
+  ssr: false,
+  loading: () => <div className="h-80 animate-pulse rounded-card bg-surface" aria-hidden />,
+});
+
 const PositionReturnsChart = dynamic(
   () => import("@/components/charts/position-returns-chart").then((m) => m.PositionReturnsChart),
   { ssr: false, loading: () => <div className="h-44 animate-pulse rounded-2xl bg-surface-2" aria-hidden /> },
@@ -201,6 +206,8 @@ function HomeContent({
           </Card>
         </div>
       )}
+
+      {byAsset.length > 0 && <BenchmarkCard data={data} />}
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-2 md:gap-5 md:items-start">
       <Card>
