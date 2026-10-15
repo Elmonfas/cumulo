@@ -33,6 +33,17 @@ export function formatCurrency(value: DecimalInput, { signed = false } = {}): st
   return `${formatNumber(value, 2, { signed })}${NBSP}€`;
 }
 
+/** Versión corta para ejes y etiquetas: "850 €", "1,5 mil €", "12 mil €", "1,2 M€". */
+export function formatCompactCurrency(value: DecimalInput): string {
+  const decimal = toDecimal(value);
+  const abs = decimal.abs();
+  const compact = (scaled: Decimal, decimals: number) =>
+    formatNumber(scaled, decimals).replace(/,0+$/, "");
+  if (abs.gte(999_500)) return `${compact(decimal.div(1_000_000), 1)}${NBSP}M€`;
+  if (abs.gte(1_000)) return `${compact(decimal.div(1_000), abs.gte(10_000) ? 0 : 1)}${NBSP}mil${NBSP}€`;
+  return `${formatNumber(decimal, 0)}${NBSP}€`;
+}
+
 /** Recibe una proporción (0.032 → "+3,2 %"). Con signo por defecto, para variaciones. */
 export function formatPercent(ratio: DecimalInput, { decimals = 1, signed = true } = {}): string {
   return `${formatNumber(toDecimal(ratio).times(100), decimals, { signed })}${NBSP}%`;

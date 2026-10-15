@@ -82,9 +82,16 @@
   --default-transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
 }
 
-/* Cifra protagonista: 48–56px, peso 500, tracking -0.02em, tabular-nums. */
+/*
+ * Cifra protagonista: 48–56px, peso 500, tracking -0.02em, tabular-nums.
+ * Si la cifra es tan larga que no cabe en su contenedor (`@container`), se
+ * reduce para no desbordar; --hero-chars lo fija AnimatedAmount.
+ */
 @utility hero-figure {
-  font-size: clamp(3rem, 2.4rem + 2.5vw, 3.5rem);
+  /* Vía variables: Lightning CSS descarta el segundo argumento de un min() literal. */
+  --hero-size-max: clamp(3rem, 2.4rem + 2.5vw, 3.5rem);
+  --hero-size-fit: calc(188cqi / var(--hero-chars, 1));
+  font-size: min(var(--hero-size-max), var(--hero-size-fit));
   line-height: 1;
   font-weight: 500;
   letter-spacing: -0.02em;

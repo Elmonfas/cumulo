@@ -1,6 +1,6 @@
 import Decimal from "decimal.js";
 import { describe, expect, it } from "vitest";
-import { formatCurrency, formatDate, formatNumber, formatPercent } from "./format";
+import { formatCompactCurrency, formatCurrency, formatDate, formatNumber, formatPercent } from "./format";
 
 // Los símbolos van tras un espacio duro (U+00A0).
 const nb = (s: string) => s.replace(/ /g, " ");
@@ -28,6 +28,22 @@ describe("formatCurrency", () => {
     expect(formatCurrency("12.3", { signed: true })).toBe(nb("+12,30 €"));
     expect(formatCurrency("-12.3", { signed: true })).toBe(nb("-12,30 €"));
     expect(formatCurrency("0", { signed: true })).toBe(nb("0,00 €"));
+  });
+});
+
+describe("formatCompactCurrency", () => {
+  it.each([
+    ["0", "0 €"],
+    ["850.4", "850 €"],
+    ["1500", "1,5 mil €"],
+    ["2000", "2 mil €"],
+    ["12499", "12 mil €"],
+    ["999999", "1 M€"],
+    ["1234567", "1,2 M€"],
+    ["3000000", "3 M€"],
+    ["-2500", "-2,5 mil €"],
+  ])("%s → %s", (input, expected) => {
+    expect(formatCompactCurrency(input)).toBe(nb(expected));
   });
 });
 
