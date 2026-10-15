@@ -11,7 +11,7 @@ import { PeriodSelector } from "@/components/charts/period-selector";
 import { EmptyState } from "@/components/empty-state";
 import { LogoLockup } from "@/components/logo";
 import { PageHeader } from "@/components/layout/page-header";
-import { QuoteFreshness } from "@/components/portfolio/quote-freshness";
+import { QuoteFreshness, quotesOf } from "@/components/portfolio/quote-freshness";
 import { RefreshPricesButton } from "@/components/portfolio/refresh-prices-button";
 import { TriggeredAlerts } from "./triggered-alerts";
 import { AssetSwitcher } from "./asset-switcher";
@@ -214,7 +214,7 @@ function HomeContent({
           )}
         </div>
         <QuoteFreshness
-          oldest={data.oldestQuote}
+          quotes={quotesOf(data, focused?.position.assetId)}
           failed={failed + (histories.status === "ready" ? histories.failed : 0)}
           missing={v.missingPrices}
           className="mt-3"

@@ -19,7 +19,7 @@ import { formatCurrency, formatPercent, formatQuantity, todayIso } from "@/lib/f
 import { annualReturn } from "@/domain/performance";
 import { ASSET_TYPE_LABELS } from "@/lib/labels";
 
-import { QuoteFreshness } from "./quote-freshness";
+import { QuoteFreshness, quotesOf } from "./quote-freshness";
 import { RefreshPricesButton } from "./refresh-prices-button";
 import { WatchlistSection } from "./watchlist-section";
 import { ShareButton } from "@/components/share/share-sheet";
@@ -108,7 +108,7 @@ function PortfolioContent({
           <span className="text-sm text-text-muted">no realizado</span>
         </div>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-          <QuoteFreshness oldest={data.oldestQuote} failed={failedIds.length} missing={v.missingPrices} />
+          <QuoteFreshness quotes={quotesOf(data)} failed={failedIds.length} missing={v.missingPrices} />
           <ShareButton title="Compartir mi cartera" fileName="cumulo-cartera" build={(o) => buildPortfolioCard(data, o)} />
         </div>
       </Card>
