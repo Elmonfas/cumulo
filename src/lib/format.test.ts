@@ -1,0 +1,74 @@
+import Decimal from "decimal.js";
+import { describe, expect, it } from "vitest";
+import { formatCurrency, formatDate, formatNumber, formatPercent } from "./format";
+
+// Los símbolos van tras un espacio duro (U+00A0).
+const nb = (s: string) => s.replace(/ /g, " ");
+
+describe("formatCurrency", () => {
+  it.each([
+    ["1234.56", "1.234,56 €"],
+    ["0", "0,00 €"],
+    ["5", "5,00 €"],
+    ["999.999", "1.000,00 €"],
+    ["1234567.891", "1.234.567,89 €"],
+    ["-1234.5", "-1.234,50 €"],
+    ["0.005", "0,01 €"],
+    ["-0.004", "0,00 €"],
+  ])("%s → %s", (input, expected) => {
+    expect(formatCurrency(input)).toBe(nb(expected));
+  });
+
+  it("acepta Decimal sin perder precisión", () => {
+    expect(formatCurrency(new Decimal("0.1").plus("0.2"))).toBe(nb("0,30 €"));
+    expect(formatCurrency(new Decimal("12345678901234567.125"))).toBe(nb("12.345.678.901.234.567,13 €"));
+  });
+
+  it("añade el signo + cuando se pide", () => {
+    expect(formatCurrency("12.3", { signed: true })).toBe(nb("+12,30 €"));
+    expect(formatCurrency("-12.3", { signed: true })).toBe(nb("-12,30 €"));
+    expect(formatCurrency("0", { signed: true })).toBe(nb("0,00 €"));
+  });
+});
+
+describe("formatPercent", () => {
+  it.each([
+    ["0.032", "+3,2 %"],
+    ["-0.024", "-2,4 %"],
+    ["0", "0,0 %"],
+    ["12.3456", "+1.234,6 %"],
+    ["0.00049", "0,0 %"],
+  ])("%s → %s", (input, expected) => {
+    expect(formatPercent(input)).toBe(nb(expected));
+  });
+
+  it("admite decimales y sin signo", () => {
+    expect(formatPercent("0.07", { decimals: 2, signed: false })).toBe(nb("7,00 %"));
+  });
+});
+
+describe("formatNumber", () => {
+  it("sin decimales no deja coma", () => {
+    expect(formatNumber("1234.5", 0)).toBe("1.235");
+    expect(formatNumber("0.12345678", 8)).toBe("0,12345678");
+  });
+});
+
+describe("formatDate", () => {
+  it.each([
+    ["2026-10-15", "15 oct 2026"],
+    ["2026-01-01", "1 ene 2026"],
+    ["2026-09-30", "30 sept 2026"],
+    ["2026-12-31", "31 dic 2026"],
+  ])("%s → %s", (input, expected) => {
+    expect(formatDate(input)).toBe(expected);
+  });
+
+  it("formatea fechas con hora en la zona local", () => {
+    expect(formatDate(new Date(2026, 4, 7, 23, 59))).toBe("7 may 2026");
+  });
+
+  it("rechaza fechas no válidas", () => {
+    expect(() => formatDate("no-es-fecha")).toThrow(RangeError);
+  });
+});

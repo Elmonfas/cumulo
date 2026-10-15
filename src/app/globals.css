@@ -1,0 +1,120 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Tokens de cúmulo (ver CLAUDE.md → Sistema de diseño). */
+:root {
+  --bg: #f5f5f8;
+  --surface: #ffffff;
+  --surface-2: #f0eff5;
+  --border: #e6e5ee;
+  --text: #0e0e14;
+  --text-muted: #6b6a7a;
+  --accent: #7c3aed;
+  --accent-foreground: #ffffff;
+  --series-2: #f59e0b;
+  --positive: #16a34a;
+  --negative: #dc2626;
+  --card-shadow: 0 1px 2px rgb(14 14 20 / 0.04);
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #0a0a0f;
+  --surface: #14141b;
+  --surface-2: #1c1c25;
+  --border: #262631;
+  --text: #f4f4f7;
+  --text-muted: #8b8a9b;
+  --accent: #a78bfa;
+  --accent-foreground: #0a0a0f;
+  --series-2: #facc15;
+  --positive: #4ade80;
+  --negative: #f87171;
+  --card-shadow: none;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-series-2: var(--series-2);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+
+  /* Alias que esperan las primitivas de shadcn. */
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--text);
+  --color-popover: var(--surface);
+  --color-popover-foreground: var(--text);
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--accent-foreground);
+  --color-secondary: var(--surface-2);
+  --color-secondary-foreground: var(--text);
+  --color-muted: var(--surface-2);
+  --color-muted-foreground: var(--text-muted);
+  --color-destructive: var(--negative);
+  --color-input: var(--border);
+  --color-ring: var(--accent);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-card: 1.5rem;
+
+  --shadow-card: var(--card-shadow);
+
+  --default-transition-duration: 180ms;
+  --default-transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
+}
+
+/* Cifra protagonista: 48–56px, peso 500, tracking -0.02em, tabular-nums. */
+@utility hero-figure {
+  font-size: clamp(3rem, 2.4rem + 2.5vw, 3.5rem);
+  line-height: 1;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-accent/50;
+  }
+  html {
+    @apply bg-bg font-sans;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-bg text-text antialiased;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
