@@ -36,7 +36,7 @@ export function DecimalField({
   const describedBy = error ? `${inputId}-error` : hint ? `${inputId}-hint` : undefined;
 
   return (
-    <div className={cn("grid min-w-0 gap-1.5", className)}>
+    <div className={cn("grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5", className)}>
       <label htmlFor={inputId} className="text-sm font-medium">
         {label}
       </label>

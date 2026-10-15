@@ -1,4 +1,5 @@
-import type { Asset, PriceCacheEntry, Settings, Transaction } from "@/domain/models";
+import type { BackupData } from "@/domain/backup";
+import type { Asset, PriceCacheEntry, PriceSource, Settings, Transaction } from "@/domain/models";
 
 /**
  * Contratos de acceso a datos. La UI solo conoce estas interfaces; hoy las
@@ -7,6 +8,7 @@ import type { Asset, PriceCacheEntry, Settings, Transaction } from "@/domain/mod
 export interface AssetRepository {
   list(): Promise<Asset[]>;
   get(id: string): Promise<Asset | undefined>;
+  findBySource(priceSource: PriceSource, priceSourceId: string): Promise<Asset | undefined>;
   add(asset: Omit<Asset, "id">): Promise<Asset>;
   update(id: string, changes: Partial<Omit<Asset, "id">>): Promise<void>;
   remove(id: string): Promise<void>;
@@ -26,8 +28,10 @@ export interface TransactionRepository {
 }
 
 export interface PriceCacheRepository {
+  list(): Promise<PriceCacheEntry[]>;
   get(assetId: string): Promise<PriceCacheEntry | undefined>;
   put(entry: PriceCacheEntry): Promise<void>;
+  bulkPut(entries: PriceCacheEntry[]): Promise<void>;
 }
 
 export interface SettingsRepository {
@@ -35,9 +39,16 @@ export interface SettingsRepository {
   update(changes: Partial<Settings>): Promise<Settings>;
 }
 
+export interface BackupRepository {
+  exportAll(): Promise<BackupData>;
+  /** Sustituye todos los datos por los del backup, de forma atómica. */
+  importAll(data: BackupData): Promise<void>;
+}
+
 export interface Repositories {
   assets: AssetRepository;
   transactions: TransactionRepository;
   priceCache: PriceCacheRepository;
   settings: SettingsRepository;
+  backup: BackupRepository;
 }

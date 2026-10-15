@@ -50,6 +50,37 @@ export function formatPercent(ratio: DecimalInput, { decimals = 1, signed = true
 }
 
 const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sept", "oct", "nov", "dic"];
+const MONTHS_LONG = [
+  "enero",
+  "febrero",
+  "marzo",
+  "abril",
+  "mayo",
+  "junio",
+  "julio",
+  "agosto",
+  "septiembre",
+  "octubre",
+  "noviembre",
+  "diciembre",
+];
+
+/** "2026-10" o una fecha ISO → "octubre 2026". */
+export function formatMonthYear(isoDate: string): string {
+  const [year, month] = isoDate.split("-");
+  return `${MONTHS_LONG[Number(month) - 1]} ${year}`;
+}
+
+/** Hora local "18:05". */
+export function formatTime(value: string | Date): string {
+  const date = typeof value === "string" ? new Date(value) : value;
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+/** Fecha de hoy en la zona local, "YYYY-MM-DD". */
+export function todayIso(now = new Date()): string {
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
 const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 /**

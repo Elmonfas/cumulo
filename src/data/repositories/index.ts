@@ -1,8 +1,10 @@
 import { createDatabase } from "../db";
+import { withChangeEvents } from "./change-events";
 import { createDexieRepositories } from "./dexie";
 import type { Repositories } from "./types";
 
 export type * from "./types";
+export { getDataVersion, subscribeToDataChanges } from "./change-events";
 
 let instance: Repositories | null = null;
 
@@ -11,6 +13,6 @@ export function getRepositories(): Repositories {
   if (typeof window === "undefined") {
     throw new Error("Los repositorios solo están disponibles en el navegador.");
   }
-  instance ??= createDexieRepositories(createDatabase());
+  instance ??= withChangeEvents(createDexieRepositories(createDatabase()));
   return instance;
 }

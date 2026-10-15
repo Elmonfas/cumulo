@@ -1,3 +1,4 @@
+import { BACKUP_FORMAT, BACKUP_VERSION } from "@/domain/backup";
 import { DEFAULT_SETTINGS, type Settings } from "@/domain/models";
 import type { CumuloDB, SettingsRow } from "../db";
 import type { Repositories } from "./types";
@@ -9,10 +10,27 @@ function stripRowId({ id: _id, ...settings }: SettingsRow): Settings {
 }
 
 export function createDexieRepositories(db: CumuloDB): Repositories {
+  const settings: Repositories["settings"] = {
+    async get() {
+      const row = await db.settings.get("app");
+      return row ? { ...DEFAULT_SETTINGS, ...stripRowId(row) } : { ...DEFAULT_SETTINGS };
+    },
+    async update(changes) {
+      return db.transaction("rw", db.settings, async () => {
+        const current = await db.settings.get("app");
+        const next = { ...DEFAULT_SETTINGS, ...(current && stripRowId(current)), ...changes };
+        await db.settings.put({ ...next, id: "app" });
+        return next;
+      });
+    },
+  };
+
   return {
     assets: {
       list: () => db.assets.orderBy("id").toArray(),
       get: (id) => db.assets.get(id),
+      findBySource: (priceSource, priceSourceId) =>
+        db.assets.filter((a) => a.priceSource === priceSource && a.priceSourceId === priceSourceId).first(),
       async add(asset) {
         const row = { ...asset, id: newId() };
         await db.assets.add(row);
@@ -22,7 +40,10 @@ export function createDexieRepositories(db: CumuloDB): Repositories {
         await db.assets.update(id, changes);
       },
       async remove(id) {
-        await db.assets.delete(id);
+        await db.transaction("rw", db.assets, db.priceCache, async () => {
+          await db.priceCache.delete(id);
+          await db.assets.delete(id);
+        });
       },
     },
 
@@ -54,23 +75,37 @@ export function createDexieRepositories(db: CumuloDB): Repositories {
     },
 
     priceCache: {
+      list: () => db.priceCache.toArray(),
       get: (assetId) => db.priceCache.get(assetId),
       async put(entry) {
         await db.priceCache.put(entry);
       },
+      async bulkPut(entries) {
+        await db.priceCache.bulkPut(entries);
+      },
     },
 
-    settings: {
-      async get() {
-        const row = await db.settings.get("app");
-        return row ? { ...DEFAULT_SETTINGS, ...stripRowId(row) } : { ...DEFAULT_SETTINGS };
+    settings,
+
+    backup: {
+      async exportAll() {
+        return db.transaction("r", [db.assets, db.transactions, db.priceCache, db.settings], async () => ({
+          format: BACKUP_FORMAT,
+          version: BACKUP_VERSION,
+          exportedAt: new Date().toISOString(),
+          assets: await db.assets.toArray(),
+          transactions: await db.transactions.orderBy("date").toArray(),
+          priceCache: await db.priceCache.toArray(),
+          settings: await settings.get(),
+        }));
       },
-      async update(changes) {
-        return db.transaction("rw", db.settings, async () => {
-          const current = await db.settings.get("app");
-          const next = { ...DEFAULT_SETTINGS, ...(current && stripRowId(current)), ...changes };
-          await db.settings.put({ ...next, id: "app" });
-          return next;
+      async importAll(data) {
+        await db.transaction("rw", [db.assets, db.transactions, db.priceCache, db.settings], async () => {
+          await Promise.all([db.assets.clear(), db.transactions.clear(), db.priceCache.clear(), db.settings.clear()]);
+          await db.assets.bulkAdd(data.assets);
+          await db.transactions.bulkAdd(data.transactions);
+          await db.priceCache.bulkAdd(data.priceCache);
+          await db.settings.put({ ...DEFAULT_SETTINGS, ...data.settings, id: "app" });
         });
       },
     },
