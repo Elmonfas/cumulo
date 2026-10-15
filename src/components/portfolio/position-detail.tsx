@@ -21,6 +21,8 @@ import { setManualPrice } from "@/services/prices";
 import { AssetPriceChart } from "./asset-price-chart";
 import { PriceAlerts } from "./price-alerts";
 import { WhatIfBuy } from "./what-if-buy";
+import { ShareButton } from "@/components/share/share-sheet";
+import { buildOperationCard, buildPositionCard } from "@/lib/share-builders";
 
 const SOURCE_LABELS = { yahoo: "Yahoo Finance", coingecko: "CoinGecko", manual: "Manual" } as const;
 
@@ -75,6 +77,13 @@ export function PositionDetail({ data, assetId }: { data: PortfolioData; assetId
           </p>
         </div>
       </div>
+      <ShareButton
+        title={`Compartir ${asset.ticker ?? asset.name}`}
+        fileName={`cumulo-${(asset.ticker ?? "posicion").toLowerCase()}`}
+        build={(o) => buildPositionCard(data, assetId, o)}
+        label="Compartir posición"
+        className="justify-self-start"
+      />
 
       <AssetPriceChart
         asset={asset}
@@ -132,6 +141,16 @@ export function PositionDetail({ data, assetId }: { data: PortfolioData; assetId
                 </summary>
                 <div className="px-2 pb-2">
                   <OperationDetail transaction={t} state={data.state} price={valuation?.price ?? null} />
+                  {(t.type === "buy" || t.type === "sell") && (
+                    <ShareButton
+                      title="Compartir operación"
+                      fileName={`cumulo-${t.type === "buy" ? "compra" : "venta"}-${t.date.slice(0, 10)}`}
+                      build={(o) => buildOperationCard(data, t, o)}
+                      label="Compartir operación"
+                      variant="ghost"
+                      className="mt-2"
+                    />
+                  )}
                 </div>
               </details>
             </li>

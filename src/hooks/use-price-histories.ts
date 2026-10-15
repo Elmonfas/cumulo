@@ -9,7 +9,8 @@ import { priceKey, type PriceHistoryResponse } from "@/prices/types";
 const cache = new Map<string, Promise<ClosePoint[]>>();
 const MAX_PARALLEL = 4;
 
-function fetchHistory(asset: Asset, from: string): Promise<ClosePoint[]> {
+/** Cierres diarios en EUR de un activo desde `from` (con caché en memoria). */
+export function fetchHistory(asset: Asset, from: string): Promise<ClosePoint[]> {
   const key = `${priceKey(asset.priceSource as "yahoo" | "coingecko", asset.priceSourceId)}|${from}`;
   let promise = cache.get(key);
   if (!promise) {

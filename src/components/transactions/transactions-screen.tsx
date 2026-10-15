@@ -17,6 +17,8 @@ import { buildPortfolio, sortTransactions, transactionTotal } from "@/domain/por
 import { useLiveQuery } from "@/hooks/use-live-query";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { OperationDetail } from "@/components/operation-detail";
+import { ShareButton } from "@/components/share/share-sheet";
+import { buildOperationCard } from "@/lib/share-builders";
 import { formatCurrency, formatDate, formatMonthYear, formatQuantity } from "@/lib/format";
 import { CASH_TRANSACTION_TYPES, isAssetTransaction, TRANSACTION_TYPE_LABELS } from "@/lib/labels";
 
@@ -206,6 +208,15 @@ export function TransactionsScreen() {
               />
             ) : (
               <div className="h-40 animate-pulse rounded-2xl bg-surface-2" aria-hidden />
+            )}
+            {portfolio.status === "ready" && (
+              <ShareButton
+                title="Compartir operación"
+                fileName={`cumulo-${sheet.transaction.type === "buy" ? "compra" : "venta"}-${sheet.transaction.date.slice(0, 10)}`}
+                build={(o) => buildOperationCard(portfolio.data, sheet.transaction, o)}
+                label="Compartir operación"
+                className="h-12 text-sm"
+              />
             )}
             <Button variant="secondary" size="lg" onClick={() => setSheet({ ...sheet, mode: "edit", key: nextSheetKey() })}>
               <Pencil aria-hidden />

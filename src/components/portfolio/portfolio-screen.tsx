@@ -22,6 +22,8 @@ import { ASSET_TYPE_LABELS } from "@/lib/labels";
 import { QuoteFreshness } from "./quote-freshness";
 import { RefreshPricesButton } from "./refresh-prices-button";
 import { WatchlistSection } from "./watchlist-section";
+import { ShareButton } from "@/components/share/share-sheet";
+import { buildPortfolioCard } from "@/lib/share-builders";
 
 const PositionDetail = dynamic(() => import("./position-detail").then((m) => m.PositionDetail), { ssr: false });
 
@@ -105,7 +107,10 @@ function PortfolioContent({
           <VariationAmount value={v.unrealized} format={signedCurrency} className="text-sm" />
           <span className="text-sm text-text-muted">no realizado</span>
         </div>
-        <QuoteFreshness oldest={data.oldestQuote} failed={failedIds.length} missing={v.missingPrices} className="mt-3" />
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <QuoteFreshness oldest={data.oldestQuote} failed={failedIds.length} missing={v.missingPrices} />
+          <ShareButton title="Compartir mi cartera" fileName="cumulo-cartera" build={(o) => buildPortfolioCard(data, o)} />
+        </div>
       </Card>
 
       <dl className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-5">
