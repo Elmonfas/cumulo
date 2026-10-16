@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 
 /** Diez burbujas que dibujan la "c" de cúmulo (docs/brand, dirección 2a), en un lienzo de 64×64. */
-const CIRCLES: [number, number, number][] = [
+export const LOGO_CIRCLES: [number, number, number][] = [
   [42.07, 47.27, 4.5],
   [35.41, 50.93, 4.97],
   [27.58, 50.9, 5.49],
@@ -18,7 +18,7 @@ const CIRCLES: [number, number, number][] = [
 export function LogoMark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 64 64" aria-hidden className={cn("size-8 fill-accent", className)}>
-      {CIRCLES.map(([cx, cy, r]) => (
+      {LOGO_CIRCLES.map(([cx, cy, r]) => (
         <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r={r} />
       ))}
     </svg>
