@@ -26,7 +26,16 @@ export class InvalidBackupError extends Error {
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 const isDecimalString = (value: unknown) => typeof value === "string" && /^-?\d+(\.\d+)?$/.test(value);
-const isString = (value: unknown) => typeof value === "string" && value.length > 0;
+const isString = (value: unknown, max = 500) => typeof value === "string" && value.length > 0 && value.length <= max;
+/** "2026-10-15" o ISO con hora, y que sea una fecha real. */
+const isIsoDate = (value: unknown) =>
+  typeof value === "string" &&
+  /^\d{4}-\d{2}-\d{2}(T[\d:.]+(Z|[+-]\d{2}:\d{2})?)?$/.test(value) &&
+  !Number.isNaN(Date.parse(value.length === 10 ? `${value}T00:00:00Z` : value));
+const isOptionalString = (value: unknown, max = 64) => value === undefined || (typeof value === "string" && value.length <= max);
+/** El avatar solo puede ser una imagen embebida: nunca una URL externa (filtraría la IP al abrir la app). */
+const AVATAR = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/;
+const MAX_AVATAR_LENGTH = 400_000;
 
 const ASSET_TYPES = new Set(["stock", "etf", "crypto", "other"]);
 const PRICE_SOURCES = new Set(["coingecko", "yahoo", "manual"]);
@@ -47,10 +56,13 @@ export function parseBackup(raw: unknown): BackupData {
     if (
       !isObject(a) ||
       !isString(a.id) ||
-      !isString(a.name) ||
+      !isString(a.name, 200) ||
+      !isOptionalString(a.ticker) ||
+      !isOptionalString(a.isin) ||
       !ASSET_TYPES.has(a.type as string) ||
       !PRICE_SOURCES.has(a.priceSource as string) ||
-      typeof a.priceSourceId !== "string"
+      typeof a.priceSourceId !== "string" ||
+      a.priceSourceId.length > 64
     ) {
       throw new InvalidBackupError(`activo ${i + 1} incorrecto.`);
     }
@@ -62,7 +74,7 @@ export function parseBackup(raw: unknown): BackupData {
       !isObject(t) ||
       !isString(t.id) ||
       !TRANSACTION_TYPES.has(t.type as string) ||
-      !isString(t.date) ||
+      !isIsoDate(t.date) ||
       !ORIGINS.has(t.origin as string) ||
       ![t.quantity, t.price, t.fee, t.tax].every(isDecimalString) ||
       (t.assetId !== undefined && !assetIds.has(t.assetId as string))
@@ -72,7 +84,7 @@ export function parseBackup(raw: unknown): BackupData {
   });
 
   priceCache.forEach((p, i) => {
-    if (!isObject(p) || !assetIds.has(p.assetId as string) || !isDecimalString(p.price) || !isString(p.updatedAt)) {
+    if (!isObject(p) || !assetIds.has(p.assetId as string) || !isDecimalString(p.price) || !isIsoDate(p.updatedAt)) {
       throw new InvalidBackupError(`precio ${i + 1} incorrecto.`);
     }
   });
@@ -94,12 +106,18 @@ export function parseBackup(raw: unknown): BackupData {
   const watchlist = raw.watchlist ?? [];
   if (!Array.isArray(watchlist)) throw new InvalidBackupError("lista de seguimiento incorrecta.");
   watchlist.forEach((w, i) => {
-    if (!isObject(w) || !assetIds.has(w.assetId as string) || !isString(w.addedAt)) {
+    if (!isObject(w) || !assetIds.has(w.assetId as string) || !isIsoDate(w.addedAt)) {
       throw new InvalidBackupError(`activo seguido ${i + 1} incorrecto.`);
     }
   });
 
-  if (typeof settings.profileName !== "string" || !PERIODS.has(settings.defaultPeriod as string)) {
+  if (
+    typeof settings.profileName !== "string" ||
+    settings.profileName.length > 80 ||
+    !PERIODS.has(settings.defaultPeriod as string) ||
+    (settings.avatar !== undefined &&
+      (typeof settings.avatar !== "string" || settings.avatar.length > MAX_AVATAR_LENGTH || !AVATAR.test(settings.avatar)))
+  ) {
     throw new InvalidBackupError("ajustes incorrectos.");
   }
 

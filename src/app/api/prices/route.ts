@@ -10,7 +10,7 @@ const MAX_KEYS = 50;
  * Solo recibe identificadores de cotización; nunca cantidades ni operaciones.
  */
 export async function GET(request: NextRequest) {
-  const keys = (request.nextUrl.searchParams.get("keys") ?? "").split(",").filter(Boolean);
+  const keys = [...new Set((request.nextUrl.searchParams.get("keys") ?? "").split(",").filter(Boolean))];
   if (keys.length === 0 || keys.length > MAX_KEYS) {
     return NextResponse.json({ error: `Entre 1 y ${MAX_KEYS} identificadores.` }, { status: 400 });
   }
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   const errors: Record<string, string> = {};
   for (const key of keys) {
     const parsed = parsePriceKey(key);
-    if (!parsed) errors[key] = "Identificador no válido.";
+    if (!parsed) errors[key.slice(0, 64)] = "Identificador no válido.";
     else if (parsed.source === "yahoo") yahooIds.push(parsed.id);
     else coingeckoIds.push(parsed.id);
   }
