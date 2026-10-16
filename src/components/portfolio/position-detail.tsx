@@ -11,7 +11,7 @@ import type { PortfolioData } from "@/hooks/use-portfolio";
 import { OperationDetail } from "@/components/operation-detail";
 import type { Transaction } from "@/domain/models";
 import { annualReturn, buyDetail, sellDetail } from "@/domain/performance";
-import { sortTransactions } from "@/domain/portfolio";
+import { sortTransactions, transactionTotal } from "@/domain/portfolio";
 import { formatCurrency, formatDate, formatPercent, formatQuantity, formatTime, todayIso } from "@/lib/format";
 import { ASSET_TYPE_LABELS, TRANSACTION_TYPE_LABELS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
@@ -54,6 +54,7 @@ export function PositionDetail({ data, assetId }: { data: PortfolioData; assetId
     ],
     ["Realizado", <VariationAmount key="r" value={position.realizedGain} format={(v) => formatCurrency(v, { signed: true })} />],
     ["Cobrado en ventas", formatCurrency(position.saleProceeds)],
+    ...(position.dividends.isZero() ? [] : ([["Dividendos netos", formatCurrency(position.dividends)]] as [string, React.ReactNode][])),
     [
       "Rentabilidad anual (TIR)",
       annual ? (
@@ -89,6 +90,7 @@ export function PositionDetail({ data, assetId }: { data: PortfolioData; assetId
         asset={asset}
         transactions={assetTransactions}
         currentPrice={valuation?.price ?? null}
+        currentAt={cached?.updatedAt}
         averageCost={position.quantity.gt(0) ? position.averageCost : null}
       />
 
@@ -126,14 +128,21 @@ export function PositionDetail({ data, assetId }: { data: PortfolioData; assetId
             <li key={t.id}>
               <details className="group rounded-2xl border border-border">
                 <summary className="flex cursor-pointer list-none items-center gap-3 rounded-2xl px-3.5 py-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-accent/40 [&::-webkit-details-marker]:hidden">
-                  <span className={cn("size-2.5 shrink-0 rounded-full", t.type === "sell" ? "bg-series-2" : "bg-accent")} aria-hidden />
+                  <span
+                    className={cn(
+                      "size-2.5 shrink-0 rounded-full",
+                      t.type === "sell" ? "bg-series-3" : t.type === "dividend" ? "bg-series-4" : "bg-accent",
+                    )}
+                    aria-hidden
+                  />
                   <span className="min-w-0 flex-1">
                     <span className="block font-medium">
                       {TRANSACTION_TYPE_LABELS[t.type]} · {formatDate(t.date)}
                     </span>
                     <span className="block truncate text-xs text-text-muted tabular-nums">
-                      {formatQuantity(t.quantity)} ×{" "}
-                      {formatCurrency(t.price)}
+                      {t.type === "dividend"
+                        ? `${formatCurrency(transactionTotal(t))} netos · retención ${formatCurrency(t.tax)}`
+                        : `${formatQuantity(t.quantity)} × ${formatCurrency(t.price)}`}
                     </span>
                   </span>
                   <OperationBadge transaction={t} data={data} price={valuation?.price ?? null} />

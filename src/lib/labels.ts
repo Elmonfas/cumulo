@@ -16,8 +16,8 @@ export const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {
   fee: "Comisión",
 };
 
-/** Tipos que se pueden registrar a mano: la cartera solo lleva compras y ventas. */
-export const MANUAL_TRANSACTION_TYPES: TransactionType[] = ["buy", "sell"];
+/** Tipos que se pueden registrar a mano. */
+export const MANUAL_TRANSACTION_TYPES: TransactionType[] = ["buy", "sell", "dividend"];
 
 /** Movimientos de efectivo: la cuenta vive en el bróker y no se importan. */
 export const CASH_TRANSACTION_TYPES: TransactionType[] = ["deposit", "withdrawal"];

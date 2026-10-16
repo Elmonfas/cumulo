@@ -7,7 +7,11 @@ export const metadata: Metadata = { title: "Aportaciones periódicas" };
 export default function DcaPage() {
   return (
     <>
-      <PageHeader title="Aportaciones periódicas" description="¿Y si hubieras invertido cada mes? Con precios reales." />
+      <PageHeader
+        title="Aportaciones periódicas"
+        description="¿Y si hubieras invertido cada mes? Con precios reales."
+        back={{ href: "/herramientas", label: "Herramientas" }}
+      />
       <DcaSimulator />
     </>
   );

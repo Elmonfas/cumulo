@@ -30,7 +30,7 @@ export function YearScreen() {
   const portfolio = usePortfolio();
   return (
     <>
-      <PageHeader title="Tu año en cúmulo" description="Tu año inversor, sin adornos." />
+      <PageHeader title="Tu año en cúmulo" description="Tu año inversor, sin adornos." back={{ href: "/herramientas", label: "Herramientas" }} />
       {portfolio.status === "loading" && <div className="h-80 animate-pulse rounded-card bg-surface" aria-hidden />}
       {portfolio.status === "error" && <Card className="text-sm text-text-muted">{portfolio.error.message}</Card>}
       {portfolio.status === "ready" &&

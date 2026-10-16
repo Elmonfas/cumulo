@@ -1,7 +1,20 @@
 "use client";
 
 import Decimal from "decimal.js";
-import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, BadgeEuro, FileUp, Pencil, Plus, Receipt, type LucideIcon } from "lucide-react";
+import {
+  ArrowDownToLine,
+  ArrowLeftRight,
+  ArrowUpFromLine,
+  BadgeEuro,
+  Download,
+  FileUp,
+  Pencil,
+  Plus,
+  Receipt,
+  Search,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -19,9 +32,11 @@ import { usePortfolio } from "@/hooks/use-portfolio";
 import { OperationDetail } from "@/components/operation-detail";
 import { ShareButton } from "@/components/share/share-sheet";
 import { buildOperationCard } from "@/lib/share-builders";
-import { formatCurrency, formatDate, formatMonthYear, formatQuantity } from "@/lib/format";
+import { formatCurrency, formatDate, formatMonthYear, formatQuantity, todayIso } from "@/lib/format";
 import { CASH_TRANSACTION_TYPES, isAssetTransaction, TRANSACTION_TYPE_LABELS } from "@/lib/labels";
-
+import { downloadText } from "@/lib/image";
+import { transactionsCsv } from "@/lib/transactions-csv";
+import { cn } from "@/lib/utils";
 
 // El formulario (y su buscador) solo se descarga al abrir la hoja.
 const TransactionForm = dynamic(() => import("./transaction-form").then((m) => m.TransactionForm), { ssr: false });
@@ -38,6 +53,21 @@ const CASH_ICONS: Partial<Record<TransactionType, LucideIcon>> = {
   fee: Receipt,
 };
 
+type Filter = "all" | "buy" | "sell" | "dividend";
+const FILTERS: { key: Filter; label: string }[] = [
+  { key: "all", label: "Todas" },
+  { key: "buy", label: "Compras" },
+  { key: "sell", label: "Ventas" },
+  { key: "dividend", label: "Dividendos" },
+];
+
+/** Para buscar sin tildes ni mayúsculas: "Telefónica" encuentra "telefonica". */
+const normalize = (text: string) =>
+  text
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
+
 /** Clave nueva en cada apertura para que el formulario empiece limpio. */
 let sheetKey = 0;
 const nextSheetKey = () => ++sheetKey;
@@ -51,17 +81,32 @@ export function TransactionsScreen() {
   const data = useLiveQuery(loadData);
   const portfolio = usePortfolio();
   const [sheet, setSheet] = useState<SheetState>({ open: false });
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<Filter>("all");
   const openNew = () => setSheet({ open: true, mode: "new", key: nextSheetKey() });
   const openTransaction = (t: Transaction) =>
-    setSheet({ open: true, mode: isAssetTransaction(t.type) ? "detail" : "edit", transaction: t, key: nextSheetKey() });
+    setSheet({
+      open: true,
+      mode: isAssetTransaction(t.type) || t.type === "dividend" ? "detail" : "edit",
+      transaction: t,
+      key: nextSheetKey(),
+    });
 
   const view = useMemo(() => {
     if (data.status !== "ready") return null;
     // Depósitos y retiradas ya no forman parte de la cartera: se ocultan.
     const legacyCash = data.data.transactions.filter((t) => CASH_TRANSACTION_TYPES.includes(t.type));
     const sorted = sortTransactions(data.data.transactions.filter((t) => !CASH_TRANSACTION_TYPES.includes(t.type))).reverse();
+    const needle = normalize(query.trim());
+    const visible = sorted.filter((t) => {
+      if (filter !== "all" && t.type !== filter) return false;
+      if (!needle) return true;
+      const asset = t.assetId ? data.data.assets.get(t.assetId) : undefined;
+      const haystack = [asset?.name, asset?.ticker, asset?.isin, TRANSACTION_TYPE_LABELS[t.type], formatDate(t.date)].filter(Boolean).join(" ");
+      return normalize(haystack).includes(needle);
+    });
     const groups = new Map<string, Transaction[]>();
-    for (const t of sorted) {
+    for (const t of visible) {
       const month = t.date.slice(0, 7);
       groups.set(month, [...(groups.get(month) ?? []), t]);
     }
@@ -72,8 +117,14 @@ export function TransactionsScreen() {
     } catch {
       totals = null;
     }
-    return { groups: [...groups], totals, count: sorted.length, legacyCash };
-  }, [data]);
+    const hasDividends = sorted.some((t) => t.type === "dividend");
+    return { groups: [...groups], totals, count: sorted.length, visibleCount: visible.length, legacyCash, sorted, hasDividends };
+  }, [data, query, filter]);
+
+  function exportCsv() {
+    if (!view || data.status !== "ready") return;
+    downloadText(`cumulo-operaciones-${todayIso()}.csv`, transactionsCsv([...view.sorted].reverse(), data.data.assets), "text/csv;charset=utf-8");
+  }
 
   const editing = sheet.open && sheet.mode !== "new" ? sheet.transaction : undefined;
   const editingAsset = editing?.assetId && data.status === "ready" ? data.data.assets.get(editing.assetId) ?? null : null;
@@ -82,7 +133,7 @@ export function TransactionsScreen() {
     <>
       <PageHeader
         title="Operaciones"
-        description="Tus compras y ventas."
+        description="Compras, ventas y dividendos."
         actions={
           view && view.count > 0 ? (
             <>
@@ -154,6 +205,70 @@ export function TransactionsScreen() {
             </Card>
           </div>
 
+          <div className="grid gap-3">
+            <div className="flex items-center gap-2">
+              <label className="relative min-w-0 flex-1">
+                <span className="sr-only">Buscar operaciones</span>
+                <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-text-muted" aria-hidden />
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Buscar por activo, ticker o ISIN"
+                  className="h-11 w-full rounded-full border border-border bg-surface pr-10 pl-10 text-base outline-none placeholder:text-text-muted focus:border-accent focus:ring-3 focus:ring-accent/20 md:text-sm [&::-webkit-search-cancel-button]:hidden"
+                />
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    aria-label="Borrar búsqueda"
+                    className="absolute top-1/2 right-2 flex size-7 -translate-y-1/2 items-center justify-center rounded-full text-text-muted outline-none hover:bg-surface-2 hover:text-text focus-visible:ring-3 focus-visible:ring-accent/40"
+                  >
+                    <X className="size-4" aria-hidden />
+                  </button>
+                )}
+              </label>
+              <Button variant="outline" size="icon" onClick={exportCsv} aria-label="Exportar operaciones a CSV" title="Exportar CSV">
+                <Download aria-hidden />
+              </Button>
+            </div>
+            <div role="radiogroup" aria-label="Tipo de operación" className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none]">
+              {FILTERS.filter((f) => f.key !== "dividend" || view.hasDividends).map((f) => (
+                <button
+                  key={f.key}
+                  type="button"
+                  role="radio"
+                  aria-checked={filter === f.key}
+                  onClick={() => setFilter(f.key)}
+                  className={cn(
+                    "h-8 shrink-0 rounded-full border px-3.5 text-xs font-medium transition-colors outline-none focus-visible:ring-3 focus-visible:ring-accent/40",
+                    filter === f.key
+                      ? "border-accent bg-accent text-accent-foreground"
+                      : "border-border bg-surface text-text-muted hover:text-text",
+                  )}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {view.visibleCount === 0 && (
+            <Card className="py-10 text-center text-sm text-text-muted">
+              Ninguna operación coincide con la búsqueda.
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery("");
+                  setFilter("all");
+                }}
+                className="mt-2 block w-full font-medium text-accent outline-none hover:underline focus-visible:underline"
+              >
+                Ver todas
+              </button>
+            </Card>
+          )}
+
           {view.groups.map(([month, items]) => (
             <section key={month} aria-labelledby={`month-${month}`}>
               <h2 id={`month-${month}`} className="mb-2 px-1 text-sm font-medium text-text-muted first-letter:uppercase">
@@ -209,7 +324,7 @@ export function TransactionsScreen() {
             ) : (
               <div className="h-40 animate-pulse rounded-2xl bg-surface-2" aria-hidden />
             )}
-            {portfolio.status === "ready" && (
+            {portfolio.status === "ready" && isAssetTransaction(sheet.transaction.type) && (
               <ShareButton
                 title="Compartir operación"
                 fileName={`cumulo-${sheet.transaction.type === "buy" ? "compra" : "venta"}-${sheet.transaction.date.slice(0, 10)}`}

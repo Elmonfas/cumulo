@@ -46,6 +46,8 @@ export function TransactionForm({ transaction, asset: initialAsset = null, onDon
 
   const transactions = useLiveQuery(listTransactions);
   const forAsset = isAssetTransaction(type);
+  // Los dividendos también van ligados a un activo, pero se registran por importe.
+  const needsAsset = forAsset || type === "dividend";
   // Tipos que no se pueden crear a mano (dividendos, comisiones importadas) se editan con su tipo.
   const types = MANUAL_TRANSACTION_TYPES.includes(initialType) ? MANUAL_TRANSACTION_TYPES : [initialType];
 
@@ -56,8 +58,8 @@ export function TransactionForm({ transaction, asset: initialAsset = null, onDon
     const a = parseDecimal(amount);
     const f = parseDecimal(fee || "0");
     const t = parseDecimal(tax || "0");
+    if (needsAsset && !asset) errors.asset = "Elige un activo.";
     if (forAsset) {
-      if (!asset) errors.asset = "Elige un activo.";
       if (!q || q.lte(0)) errors.quantity = "Mayor que 0.";
       if (!p || p.isNegative()) errors.price = "0 o más.";
     } else if (!a || a.lte(0)) {
@@ -78,7 +80,7 @@ export function TransactionForm({ transaction, asset: initialAsset = null, onDon
       Object.keys(errors).length === 0
         ? {
             type,
-            assetId: forAsset ? asset!.id : undefined,
+            assetId: needsAsset ? asset!.id : undefined,
             date,
             quantity: forAsset ? q!.toString() : "1",
             price: forAsset ? p!.toString() : a!.toString(),
@@ -87,7 +89,7 @@ export function TransactionForm({ transaction, asset: initialAsset = null, onDon
           }
         : null;
     return { errors, total, draft };
-  }, [quantity, price, amount, fee, tax, forAsset, asset, date, type]);
+  }, [quantity, price, amount, fee, tax, forAsset, needsAsset, asset, date, type]);
 
   const holding = useMemo(() => {
     if (type !== "sell" || !asset || transactions.status !== "ready") return null;
@@ -132,14 +134,15 @@ export function TransactionForm({ transaction, asset: initialAsset = null, onDon
     }
   }
 
-  const totalLabel = type === "sell" ? "Cobras" : type === "buy" ? "Pagas" : "Importe neto";
+  const totalLabel = type === "sell" ? "Cobras" : type === "buy" ? "Pagas" : type === "dividend" ? "Cobras (neto)" : "Importe neto";
 
   return (
     <form id="transaction-form" onSubmit={onSubmit} className="grid grid-cols-[minmax(0,1fr)] gap-4 pt-1" noValidate>
       <div
         role="radiogroup"
         aria-label="Tipo de operación"
-        className={cn("grid gap-1 rounded-full border border-border bg-surface-2 p-1", types.length > 1 ? "grid-cols-2" : "grid-cols-1")}
+        style={{ gridTemplateColumns: `repeat(${types.length}, minmax(0, 1fr))` }}
+        className="grid gap-1 rounded-full border border-border bg-surface-2 p-1"
       >
         {types.map((t) => (
           <button
@@ -161,7 +164,7 @@ export function TransactionForm({ transaction, asset: initialAsset = null, onDon
         ))}
       </div>
 
-      {forAsset && <AssetPicker value={asset} onChange={setAsset} error={errors.asset} />}
+      {needsAsset && <AssetPicker value={asset} onChange={setAsset} error={errors.asset} />}
 
       <div className="grid gap-1.5">
         <label htmlFor="transaction-date" className="text-sm font-medium">
@@ -194,12 +197,20 @@ export function TransactionForm({ transaction, asset: initialAsset = null, onDon
           <DecimalField label="Precio" suffix="€" value={price} onValueChange={setPrice} error={errors.price} placeholder="0,00" />
         </div>
       ) : (
-        <DecimalField label="Importe" suffix="€" value={amount} onValueChange={setAmount} error={errors.amount} placeholder="0,00" />
+        <DecimalField
+          label={type === "dividend" ? "Importe bruto" : "Importe"}
+          suffix="€"
+          value={amount}
+          onValueChange={setAmount}
+          error={errors.amount}
+          placeholder="0,00"
+          hint={type === "dividend" ? "Antes de retenciones: lo que declara Hacienda como íntegro." : undefined}
+        />
       )}
 
       <div className="grid grid-cols-2 gap-3">
         <DecimalField label="Comisión" suffix="€" value={fee} onValueChange={setFee} error={errors.fee} />
-        <DecimalField label="Impuestos" suffix="€" value={tax} onValueChange={setTax} error={errors.tax} />
+        <DecimalField label={type === "dividend" ? "Retención" : "Impuestos"} suffix="€" value={tax} onValueChange={setTax} error={errors.tax} />
       </div>
 
       <div className="flex items-baseline justify-between rounded-2xl bg-surface-2 px-4 py-3">

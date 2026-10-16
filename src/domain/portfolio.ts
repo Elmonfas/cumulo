@@ -16,6 +16,8 @@ import type { Transaction, TransactionType } from "./models";
  *   medio ponderado es ese coste entre la cantidad.
  * - No se puede vender más de lo que se tiene en esa fecha.
  * - Depósitos y retiradas (si llegan de una importación) se ignoran.
+ * - Dividendo: importe bruto en `price` (cantidad 1), retención en `tax`.
+ *   Lo neto suma al total y, si lleva activo con posición, a esa posición.
  */
 
 export interface Lot {
@@ -37,7 +39,18 @@ export interface Position {
   realizedGain: Decimal;
   /** Total cobrado por las ventas de este activo. */
   saleProceeds: Decimal;
+  /** Dividendos netos cobrados de este activo. */
+  dividends: Decimal;
   lots: Lot[];
+}
+
+/** Parte de un lote de compra que consume una venta (para el informe fiscal). */
+export interface ConsumedLot {
+  transactionId: string;
+  /** Fecha de adquisición. */
+  date: string;
+  quantity: Decimal;
+  cost: Decimal;
 }
 
 /** Resultado de una venta concreta. */
@@ -49,6 +62,8 @@ export interface SaleResult {
   /** Coste FIFO de lo vendido. */
   cost: Decimal;
   gain: Decimal;
+  /** Lotes FIFO de los que sale lo vendido, del más antiguo al más reciente. */
+  consumed: ConsumedLot[];
 }
 
 export interface PortfolioState {
@@ -159,6 +174,7 @@ function positionFor(state: PortfolioState, assetId: string): Position {
       averageCost: new Decimal(0),
       realizedGain: new Decimal(0),
       saleProceeds: new Decimal(0),
+      dividends: new Decimal(0),
       lots: [],
     };
     state.positions.set(assetId, position);
@@ -180,9 +196,13 @@ export function applyTransaction(state: PortfolioState, t: Transaction): void {
     case "withdrawal":
       // La cuenta de efectivo vive en el bróker: no afecta a la cartera.
       break;
-    case "dividend":
-      state.dividends = state.dividends.plus(amount.minus(charges));
+    case "dividend": {
+      const net = amount.minus(charges);
+      state.dividends = state.dividends.plus(net);
+      const position = t.assetId ? state.positions.get(t.assetId) : undefined;
+      if (position) position.dividends = position.dividends.plus(net);
       break;
+    }
     case "fee":
       state.fees = state.fees.plus(amount).plus(charges);
       break;
@@ -201,15 +221,18 @@ export function applyTransaction(state: PortfolioState, t: Transaction): void {
       if (remaining.gt(position.quantity)) throw new OversellError(t, position.quantity);
 
       let consumedCost = new Decimal(0);
+      const consumed: ConsumedLot[] = [];
       while (remaining.gt(0)) {
         const lot = position.lots[0];
         if (lot.quantity.lte(remaining)) {
           consumedCost = consumedCost.plus(lot.cost);
+          consumed.push({ transactionId: lot.transactionId, date: lot.date, quantity: lot.quantity, cost: lot.cost });
           remaining = remaining.minus(lot.quantity);
           position.lots.shift();
         } else {
           const partCost = lot.cost.times(remaining).div(lot.quantity);
           consumedCost = consumedCost.plus(partCost);
+          consumed.push({ transactionId: lot.transactionId, date: lot.date, quantity: remaining, cost: partCost });
           lot.cost = lot.cost.minus(partCost);
           lot.quantity = lot.quantity.minus(remaining);
           remaining = new Decimal(0);
@@ -224,7 +247,7 @@ export function applyTransaction(state: PortfolioState, t: Transaction): void {
       position.saleProceeds = position.saleProceeds.plus(proceeds);
       state.realizedGain = state.realizedGain.plus(gain);
       state.saleProceeds = state.saleProceeds.plus(proceeds);
-      state.sales.set(t.id, { transactionId: t.id, assetId: t.assetId!, proceeds, cost: consumedCost, gain });
+      state.sales.set(t.id, { transactionId: t.id, assetId: t.assetId!, proceeds, cost: consumedCost, gain, consumed });
       break;
     }
   }

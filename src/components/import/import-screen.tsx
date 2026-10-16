@@ -64,7 +64,11 @@ export function ImportScreen() {
 
   return (
     <>
-      <PageHeader title="Importar CSV" description="Exportación de transacciones de Trade Republic." />
+      <PageHeader
+        title="Importar CSV"
+        description="Exportación de transacciones de Trade Republic."
+        back={{ href: "/operaciones", label: "Operaciones" }}
+      />
       {(step.name === "upload" || step.name === "reading") && (
         <UploadStep busy={step.name === "reading"} error={step.name === "upload" ? step.error : undefined} onFile={readFile} />
       )}

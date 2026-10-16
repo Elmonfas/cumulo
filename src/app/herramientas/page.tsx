@@ -1,4 +1,4 @@
-import { CalendarSync, ChevronRight, Sparkles, TrendingUp } from "lucide-react";
+import { CalendarSync, ChevronRight, Landmark, Sparkles, TrendingUp } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
@@ -11,6 +11,12 @@ const TOOLS = [
     title: "Tu año en cúmulo",
     description: "Tu resumen del año: meses aportando, mejor mes, mejor compra y más.",
     icon: Sparkles,
+  },
+  {
+    href: "/herramientas/renta",
+    title: "Informe para la Renta",
+    description: "Ganancias y pérdidas FIFO, regla de los dos meses, dividendos y cuota estimada.",
+    icon: Landmark,
   },
   {
     href: "/herramientas/interes-compuesto",
@@ -29,7 +35,7 @@ const TOOLS = [
 export default function ToolsPage() {
   return (
     <>
-      <PageHeader title="Herramientas" description="Calculadoras para planificar." />
+      <PageHeader title="Herramientas" description="Análisis y calculadoras para planificar." />
       <ul className="grid gap-4 md:grid-cols-2 md:gap-5">
         {TOOLS.map(({ href, title, description, icon: Icon }) => (
           <li key={href}>

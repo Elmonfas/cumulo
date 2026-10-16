@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { VariationAmount, VariationBadge } from "@/components/variation-badge";
 import type { Transaction } from "@/domain/models";
 import { buyDetail, sellDetail } from "@/domain/performance";
-import type { PortfolioState } from "@/domain/portfolio";
+import { transactionTotal, type PortfolioState } from "@/domain/portfolio";
 import { formatCurrency, formatNumber, formatPercent, formatQuantity, todayIso } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -72,6 +72,11 @@ export function OperationDetail({
         </span>,
       ]);
     }
+  } else if (t.type === "dividend") {
+    rows.push(["Importe bruto", formatCurrency(new Decimal(t.quantity).times(t.price))]);
+    rows.push(["Retención", formatCurrency(t.tax)]);
+    if (!new Decimal(t.fee).isZero()) rows.push(["Comisión", formatCurrency(t.fee)]);
+    rows.push(["Cobraste (neto)", formatCurrency(transactionTotal(t))]);
   }
 
   if (rows.length === 0) return null;

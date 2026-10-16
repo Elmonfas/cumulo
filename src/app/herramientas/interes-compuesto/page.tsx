@@ -7,7 +7,11 @@ export const metadata: Metadata = { title: "Interés compuesto" };
 export default function CompoundInterestPage() {
   return (
     <>
-      <PageHeader title="Interés compuesto" description="Capitalización mensual con aportaciones." />
+      <PageHeader
+        title="Interés compuesto"
+        description="Capitalización mensual con aportaciones."
+        back={{ href: "/herramientas", label: "Herramientas" }}
+      />
       <CompoundInterestCalculator />
     </>
   );
