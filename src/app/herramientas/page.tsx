@@ -1,4 +1,4 @@
-import { CalendarSync, ChevronRight, Landmark, Sparkles, TrendingUp } from "lucide-react";
+import { CalendarDays, CalendarSync, ChevronRight, Landmark, Sparkles, TrendingUp } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
@@ -11,6 +11,12 @@ const TOOLS = [
     title: "Tu año en cúmulo",
     description: "Tu resumen del año: meses aportando, mejor mes, mejor compra y más.",
     icon: Sparkles,
+  },
+  {
+    href: "/herramientas/calendario",
+    title: "Calendario",
+    description: "Los días que compraste y vendiste, con más intensidad cuanto más dinero.",
+    icon: CalendarDays,
   },
   {
     href: "/herramientas/renta",

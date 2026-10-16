@@ -29,7 +29,7 @@
 | **Inicio** | Valor de la cartera en vivo, ganancia, variación por periodo (1D · 1S · 1M · YTD · 1A · Todo) con datos intradía, distribución, rentabilidad por posición y comparación con un índice (MSCI World, S&P 500, All-World). |
 | **Cartera** | Posiciones abiertas y cerradas, coste medio, no realizado, realizado, TIR, lista de seguimiento y alertas de precio. Cada posición tiene su gráfica de precio con tus compras y ventas marcadas y la línea de tu precio medio. |
 | **Operaciones** | Alta manual de compras, ventas y dividendos (con retención) y un buscador de activos por nombre, ticker o ISIN. Búsqueda, filtros y exportación a CSV. No deja vender más de lo que tienes. |
-| **Herramientas** | Informe para la Renta (FIFO, regla de los dos meses, compensación ganancias/dividendos, cuota estimada y CSV), «Tu año en cúmulo», interés compuesto y simulador de aportaciones periódicas con precios reales. |
+| **Herramientas** | Calendario de operaciones (cada día con compras o ventas, más intenso cuanto más dinero), informe para la Renta (FIFO, regla de los dos meses, compensación ganancias/dividendos, cuota estimada y CSV), «Tu año en cúmulo», interés compuesto y simulador de aportaciones periódicas con precios reales. |
 | **Ajustes** | Tema claro/oscuro/sistema, modo privado (oculta importes), periodo por defecto y copia de seguridad JSON para llevarte tus datos a otro navegador. |
 
 Además: instalable como app (PWA) con página sin conexión, tarjetas para compartir una posición o tu año sin revelar importes si no quieres, y precios que se refrescan cada 30 s con la app abierta.
