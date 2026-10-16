@@ -14,6 +14,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { QuoteFreshness, quotesOf } from "@/components/portfolio/quote-freshness";
 import { RefreshPricesButton } from "@/components/portfolio/refresh-prices-button";
 import { TriggeredAlerts } from "./triggered-alerts";
+import { CalendarWidget } from "@/components/calendar/calendar-widget";
 import { AssetSwitcher } from "./asset-switcher";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -241,21 +242,11 @@ function HomeContent({
         />
       </Card>
 
-      {/* Segunda fila: dos gráficos, uno junto al otro (apilados en móvil, donde no caben legibles). */}
+      {/* Segunda fila: distribución y calendario del mes (apilados en móvil). */}
       {byAsset.length > 0 && (
         <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2 md:gap-5">
           <AllocationCard byType={byType} byAsset={byAsset} data={data} />
-          <Card className="min-w-0">
-            <h2 className="font-medium">Rentabilidad por posición</h2>
-            <p className="mt-0.5 text-xs text-text-muted">No realizado</p>
-            <div className="@container mt-3">
-              <PositionReturnsChart
-                positions={v.positions}
-                nameOf={(id) => data.assets.get(id)?.name ?? "Activo"}
-                tickerOf={(id) => shortTicker(data.assets.get(id))}
-              />
-            </div>
-          </Card>
+          <CalendarWidget transactions={data.transactions} />
         </div>
       )}
 
@@ -290,6 +281,20 @@ function HomeContent({
         </Card>
       )}
       </div>
+
+      {byAsset.length > 0 && (
+        <Card className="min-w-0">
+          <h2 className="font-medium">Rentabilidad por posición</h2>
+          <p className="mt-0.5 text-xs text-text-muted">No realizado</p>
+          <div className="@container mt-3">
+            <PositionReturnsChart
+              positions={v.positions}
+              nameOf={(id) => data.assets.get(id)?.name ?? "Activo"}
+              tickerOf={(id) => shortTicker(data.assets.get(id))}
+            />
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

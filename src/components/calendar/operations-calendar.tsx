@@ -118,35 +118,16 @@ function CalendarContent({ transactions, assets }: { transactions: Parameters<ty
           </MonthButton>
         </div>
 
-        <div role="grid" aria-label={`Operaciones de ${formatMonthYear(key)}`} className="mt-4 grid gap-1.5">
-          <div role="row" className="grid grid-cols-7 gap-1.5">
-            {WEEKDAYS.map((w, i) => (
-              <span key={w} role="columnheader" aria-label={WEEKDAYS_LONG[i]} className="text-center text-[11px] font-medium text-text-muted">
-                {w}
-              </span>
-            ))}
-          </div>
-          {weeks.map((week, i) => (
-            <div key={i} role="row" className="grid grid-cols-7 gap-1.5">
-              {week.map((date, j) =>
-                date ? (
-                  <DayCell
-                    key={date}
-                    date={date}
-                    activity={days.get(date)}
-                    thresholds={thresholds}
-                    today={date === today}
-                    future={date > today}
-                    selected={date === selected}
-                    onSelect={() => setSelected(date === selected ? null : date)}
-                  />
-                ) : (
-                  <span key={`empty-${j}`} role="gridcell" aria-hidden />
-                ),
-              )}
-            </div>
-          ))}
-        </div>
+        <CalendarGrid
+          className="mt-4"
+          label={`Operaciones de ${formatMonthYear(key)}`}
+          weeks={weeks}
+          days={days}
+          thresholds={thresholds}
+          today={today}
+          selected={selected}
+          onSelect={(date) => setSelected(date === selected ? null : date)}
+        />
 
         <Legend />
       </Card>
@@ -166,6 +147,71 @@ function CalendarContent({ transactions, assets }: { transactions: Parameters<ty
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Rejilla de un mes. Con `onSelect` los días con operaciones son botones; sin
+ * él (widget de Inicio), solo se pintan. `compact` reduce tamaños.
+ */
+export function CalendarGrid({
+  label,
+  weeks,
+  days,
+  thresholds,
+  today,
+  selected = null,
+  onSelect,
+  compact = false,
+  className,
+}: {
+  label: string;
+  weeks: (string | null)[][];
+  days: Map<string, DayActivity>;
+  thresholds: Decimal[];
+  today: string;
+  selected?: string | null;
+  onSelect?: (date: string) => void;
+  compact?: boolean;
+  className?: string;
+}) {
+  const gap = compact ? "gap-1" : "gap-1.5";
+  return (
+    <div role="grid" aria-label={label} className={cn("grid", gap, className)}>
+      <div role="row" className={cn("grid grid-cols-7", gap)}>
+        {WEEKDAYS.map((w, i) => (
+          <span
+            key={w}
+            role="columnheader"
+            aria-label={WEEKDAYS_LONG[i]}
+            className={cn("text-center font-medium text-text-muted", compact ? "text-[10px]" : "text-[11px]")}
+          >
+            {w}
+          </span>
+        ))}
+      </div>
+      {weeks.map((week, i) => (
+        <div key={i} role="row" className={cn("grid grid-cols-7", gap)}>
+          {week.map((date, j) =>
+            date ? (
+              <DayCell
+                key={date}
+                date={date}
+                activity={days.get(date)}
+                thresholds={thresholds}
+                today={date === today}
+                future={date > today}
+                selected={date === selected}
+                onSelect={onSelect ? () => onSelect(date) : undefined}
+                compact={compact}
+              />
+            ) : (
+              <span key={`empty-${j}`} role="gridcell" aria-hidden />
+            ),
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -192,6 +238,7 @@ function DayCell({
   future,
   selected,
   onSelect,
+  compact,
 }: {
   date: string;
   activity?: DayActivity;
@@ -199,8 +246,10 @@ function DayCell({
   today: boolean;
   future: boolean;
   selected: boolean;
-  onSelect: () => void;
+  onSelect?: () => void;
+  compact: boolean;
 }) {
+  const size = compact ? "rounded-lg text-[11px]" : "rounded-xl text-sm";
   const day = Number(date.slice(8, 10));
   const buyLevel = activity ? intensity(activity.bought, thresholds) : 0;
   const sellLevel = activity ? intensity(activity.sells ? activity.sold : new Decimal(0), thresholds) : 0;
@@ -220,14 +269,17 @@ function DayCell({
     .filter(Boolean)
     .join(", ");
 
-  if (!activity) {
+  if (!activity || !onSelect) {
     return (
       <span
         role="gridcell"
         aria-label={label}
+        style={activity ? ({ background } as CSSProperties) : undefined}
         className={cn(
-          "flex aspect-square items-center justify-center rounded-xl text-sm tabular-nums",
-          future ? "text-text-muted/40" : "bg-surface-2/60 text-text-muted",
+          "flex aspect-square items-center justify-center tabular-nums",
+          size,
+          activity && (strong ? "font-medium text-accent-foreground" : "font-medium text-text"),
+          !activity && (future ? "text-text-muted/40" : "bg-surface-2/60 text-text-muted"),
           today && "ring-2 ring-accent/60 ring-inset",
         )}
       >
@@ -245,7 +297,8 @@ function DayCell({
       onClick={onSelect}
       style={{ background } as CSSProperties}
       className={cn(
-        "flex aspect-square items-center justify-center rounded-xl text-sm font-medium tabular-nums transition-transform duration-150 ease-out outline-none focus-visible:ring-3 focus-visible:ring-accent/40 active:scale-95",
+        "flex aspect-square items-center justify-center font-medium tabular-nums transition-transform duration-150 ease-out outline-none focus-visible:ring-3 focus-visible:ring-accent/40 active:scale-95",
+        size,
         strong ? "text-accent-foreground" : "text-text",
         selected && "ring-2 ring-text ring-offset-2 ring-offset-surface",
         today && !selected && "ring-2 ring-accent/60 ring-inset",
@@ -256,10 +309,10 @@ function DayCell({
   );
 }
 
-function Legend() {
+export function Legend({ compact = false }: { compact?: boolean }) {
   const levels: Intensity[] = [1, 2, 3, 4];
   return (
-    <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-text-muted">
+    <div className={cn("flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-text-muted", compact ? "mt-3" : "mt-4")}>
       {[
         { label: "Compras", color: BUY },
         { label: "Ventas", color: SELL },
@@ -273,7 +326,7 @@ function Legend() {
           </span>
         </span>
       ))}
-      <span>Más claro = menos dinero</span>
+      {!compact && <span>Más claro = menos dinero</span>}
     </div>
   );
 }
