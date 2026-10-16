@@ -1,16 +1,18 @@
 "use client";
 
 import Decimal from "decimal.js";
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, Line, ReferenceDot, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ChartTooltipPill, type TooltipRow } from "@/components/charts/chart-tooltip";
 import { PeriodSelector } from "@/components/charts/period-selector";
 import { VariationBadge } from "@/components/variation-badge";
-import { addDays, periodStart } from "@/domain/history";
+import { addDays, intradayDates, isIntradayPeriod, periodStart } from "@/domain/history";
 import type { Asset, PeriodKey, Transaction } from "@/domain/models";
 import { averageCostSeries, priceSeriesWithTrades, type TradeMarker } from "@/domain/trade-markers";
 import { usePriceHistories } from "@/hooks/use-price-histories";
-import { areAmountsHidden, formatAxisDate, formatCompactCurrency, formatCurrency, formatDate, formatNumber, formatQuantity, isLongRange, MASK, todayIso } from "@/lib/format";
+import { axisWidth, currencyAxisFormatter, formatPointDate, formatTimeTick, hasTime, niceScale, timeAxisTicks } from "@/lib/chart-axis";
+import { areAmountsHidden, formatAxisDate, formatCurrency, formatQuantity, isLongRange, todayIso } from "@/lib/format";
+import type { IntradayRange } from "@/prices/types";
 
 interface AssetPriceChartProps {
   asset: Asset;
@@ -18,6 +20,8 @@ interface AssetPriceChartProps {
   currentPrice: Decimal | null;
   /** Precio medio de compra de la posición abierta; null si está cerrada. */
   averageCost: Decimal | null;
+  /** Hora de la cotización actual (ISO): cierra la serie intradía en su instante real. */
+  currentAt?: string;
 }
 
 interface Point {
@@ -30,7 +34,7 @@ interface Point {
   avgLabel: string | null;
 }
 
-const PERIODS: PeriodKey[] = ["1W", "1M", "YTD", "1Y", "ALL"];
+const PERIODS: PeriodKey[] = ["1D", "1W", "1M", "YTD", "1Y", "ALL"];
 const toNumber = (d: Decimal) => Number(d.toFixed(6));
 const tradeLabel = (m: TradeMarker) =>
   `${formatQuantity(m.quantity)} × ${formatCurrency(m.price)}`;
@@ -39,7 +43,7 @@ const tradeLabel = (m: TradeMarker) =>
  * Precio del activo con un punto sobre la curva en cada compra y venta, y la
  * línea del precio medio de compra para ver de un vistazo si vas en positivo.
  */
-export function AssetPriceChart({ asset, transactions, currentPrice, averageCost }: AssetPriceChartProps) {
+export function AssetPriceChart({ asset, transactions, currentPrice, averageCost, currentAt }: AssetPriceChartProps) {
   const today = todayIso();
   const trades = useMemo(() => transactions.filter((t) => t.type === "buy" || t.type === "sell"), [transactions]);
   // Sin operaciones (activo seguido) "Todo" no tiene sentido: se empieza por un año.
@@ -52,14 +56,25 @@ export function AssetPriceChart({ asset, transactions, currentPrice, averageCost
     return addDays(firstTrade < yearAgo ? firstTrade : yearAgo, -7);
   }, [firstTrade, today]);
   const assets = useMemo(() => [asset], [asset]);
-  const histories = usePriceHistories(assets, asset.priceSource === "manual" ? null : fetchFrom);
+  const remote = asset.priceSource !== "manual";
+  const intraday = isIntradayPeriod(period) ? (period as IntradayRange) : null;
+  // Cierres diarios para los periodos largos; precios intradía (5 min–1 h) para 1D, 1S y 1M.
+  const daily = usePriceHistories(assets, remote && !intraday ? fetchFrom : null);
+  const detailed = usePriceHistories(assets, remote && intraday ? fetchFrom : null, intraday);
+  const histories = intraday ? detailed : daily;
 
   const series = useMemo(() => {
     if (histories.status !== "ready") return null;
-    const start = period === "ALL" ? (trades.length ? firstTrade : addDays(today, -365)) : periodStart(period, today, firstTrade);
     const closes = histories.closes.get(asset.id) ?? [];
+    if (intraday) {
+      const window = new Set(intradayDates([closes], intraday, new Date()));
+      const points = closes.filter((p) => window.has(p.date));
+      const current = currentPrice && currentAt ? { date: new Date(currentAt).toISOString(), price: currentPrice } : undefined;
+      return priceSeriesWithTrades(points, trades, current, points[0]?.date.slice(0, 10));
+    }
+    const start = period === "ALL" ? (trades.length ? firstTrade : addDays(today, -365)) : periodStart(period, today, firstTrade);
     return priceSeriesWithTrades(closes, trades, currentPrice ? { date: today, price: currentPrice } : undefined, start);
-  }, [histories, asset.id, trades, currentPrice, period, firstTrade, today]);
+  }, [histories, intraday, asset.id, trades, currentPrice, currentAt, period, firstTrade, today]);
 
   if (asset.priceSource === "manual") {
     return <p className="rounded-2xl bg-surface-2 px-4 py-3 text-sm text-text-muted">Sin histórico: este activo tiene precio manual.</p>;
@@ -120,6 +135,7 @@ function Chart({
   /** Ampliar el eje para que siempre se vea la línea del precio medio. */
   extendToAverage: boolean;
 }) {
+  const gradientId = `fill-asset-price-${useId().replace(/[^\w-]/g, "")}`;
   const averages = averageCostSeries(trades, points.map((p) => p.date));
   const closesNum = points.map((p) => toNumber(p.close));
   const low = Math.min(...closesNum);
@@ -141,10 +157,12 @@ function Chart({
   const markersByDate = new Map<string, TradeMarker[]>();
   for (const m of markers) markersByDate.set(m.date, [...(markersByDate.get(m.date) ?? []), m]);
   const longRange = isLongRange(data[0].date, data.at(-1)!.date);
-  // Con rangos estrechos (p. ej. una semana) el formato compacto repetiría etiquetas: se usan decimales.
-  const axisDecimals = high >= 1000 ? null : span < 2 ? 2 : span < 20 ? 1 : 0;
-  const axisLabel = (v: number) =>
-    areAmountsHidden() ? MASK : axisDecimals === null ? formatCompactCurrency(String(v)) : `${formatNumber(new Decimal(String(v)), axisDecimals)} €`;
+  const dates = data.map((d) => d.date);
+  const intraday = hasTime(dates[0]);
+  const xTicks = timeAxisTicks(dates);
+  const yScale = niceScale([...closesNum, ...data.flatMap((d) => (d.avg === null ? [] : [d.avg]))]);
+  const axisLabel = currencyAxisFormatter(yScale.ticks, { hidden: areAmountsHidden() });
+  const yWidth = axisWidth(yScale.ticks.map(axisLabel));
   const hasSells = markers.some((m) => m.type === "sell");
   // Cada día con operaciones se dibuja una sola vez sobre la curva.
   const dots = [...markersByDate.entries()].map(([date, list]) => ({
@@ -160,7 +178,7 @@ function Chart({
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 10, right: 12, bottom: 0, left: 0 }}>
             <defs>
-              <linearGradient id="fill-asset-price" x1="0" y1="0" x2="0" y2="1">
+              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.3} />
                 <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
               </linearGradient>
@@ -171,14 +189,17 @@ function Chart({
               tickLine={false}
               axisLine={false}
               tick={{ fill: "var(--text-muted)", fontSize: 11 }}
-              tickFormatter={(d: string) => formatAxisDate(d, longRange)}
+              ticks={xTicks}
+              interval={xTicks ? 0 : "preserveEnd"}
+              tickFormatter={(d: string) => (intraday ? formatTimeTick(d, dates) : formatAxisDate(d, longRange))}
               minTickGap={24}
             />
             <YAxis
               tickLine={false}
               axisLine={false}
-              width={60}
-              domain={["auto", "auto"]}
+              width={yWidth}
+              domain={yScale.domain}
+              ticks={yScale.ticks}
               tick={{ fill: "var(--text-muted)", fontSize: 11 }}
               tickFormatter={axisLabel}
             />
@@ -187,19 +208,28 @@ function Chart({
               content={({ active, payload }) => {
                 const point = active ? (payload?.[0]?.payload as Point | undefined) : undefined;
                 if (!point) return null;
-                const rows: TooltipRow[] = [{ label: "Cierre", value: point.label }];
+                const rows: TooltipRow[] = [{ label: intraday ? "Precio" : "Cierre", value: point.label }];
                 for (const m of markersByDate.get(point.date) ?? []) {
                   rows.push({
                     label: m.type === "buy" ? "Compra" : "Venta",
                     value: tradeLabel(m),
-                    dotClassName: m.type === "buy" ? "bg-accent" : "bg-series-2",
+                    dotClassName: m.type === "buy" ? "bg-accent" : "bg-series-3",
                   });
                 }
                 if (point.avgLabel) rows.push({ label: "Tu precio medio", value: point.avgLabel, dotClassName: "bg-series-2" });
-                return <ChartTooltipPill title={formatDate(point.date)} rows={rows} />;
+                return <ChartTooltipPill title={formatPointDate(point.date)} rows={rows} />;
               }}
             />
-            <Area type="monotone" dataKey="close" stroke="var(--accent)" strokeWidth={2} fill="url(#fill-asset-price)" animationDuration={200} />
+            <Area
+              type="linear"
+              dataKey="close"
+              stroke="var(--accent)"
+              strokeWidth={1.75}
+              strokeLinejoin="round"
+              fill={`url(#${gradientId})`}
+              activeDot={{ r: 4, fill: "var(--accent)", stroke: "var(--surface)", strokeWidth: 2 }}
+              animationDuration={200}
+            />
             {showAvgLine && (
               <Line
                 type="stepAfter"
@@ -218,7 +248,7 @@ function Chart({
                 x={d.date}
                 y={d.close}
                 r={5.5}
-                fill={d.hasSell && !d.hasBuy ? "var(--series-2)" : "var(--accent)"}
+                fill={d.hasSell && !d.hasBuy ? "var(--series-3)" : "var(--accent)"}
                 stroke="var(--surface)"
                 strokeWidth={2}
               />
@@ -235,7 +265,7 @@ function Chart({
         )}
         {hasSells && (
           <li className="flex items-center gap-1.5">
-            <span className="size-2.5 rounded-full bg-series-2" aria-hidden />
+            <span className="size-2.5 rounded-full bg-series-3" aria-hidden />
             Venta
           </li>
         )}
@@ -243,6 +273,7 @@ function Chart({
           <li className="flex items-center gap-1.5">
             <span className="h-0 w-4 border-t-[1.5px] border-dashed border-series-2" aria-hidden />
             Tu precio medio hoy · {formatCurrency(averageCost)}
+            {!showAvgLine && <span className="text-text-muted/80">(fuera de escala)</span>}
           </li>
         )}
       </ul>

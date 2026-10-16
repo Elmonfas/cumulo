@@ -143,8 +143,8 @@ export function BenchmarkCard({ data }: { data: PortfolioData }) {
                     );
                   }}
                 />
-                <Line type="monotone" dataKey="index" stroke="var(--series-2)" strokeWidth={2} dot={false} connectNulls animationDuration={200} />
-                <Line type="monotone" dataKey="you" stroke="var(--accent)" strokeWidth={2.5} dot={false} connectNulls animationDuration={200} />
+                <Line type="linear" dataKey="index" stroke="var(--series-2)" strokeWidth={2} dot={false} connectNulls animationDuration={200} />
+                <Line type="linear" dataKey="you" stroke="var(--accent)" strokeWidth={2.5} dot={false} connectNulls animationDuration={200} />
               </LineChart>
             </ResponsiveContainer>
           </div>

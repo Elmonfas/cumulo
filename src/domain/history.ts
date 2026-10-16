@@ -133,3 +133,62 @@ export function periodDates(period: PeriodKey, today: string, firstTransactionDa
   dates.push(today);
   return dates;
 }
+
+/** Duración de cada periodo intradía. */
+const INTRADAY_SPAN_MS: Partial<Record<PeriodKey, number>> = {
+  "1D": 86_400_000,
+  "1W": 7 * 86_400_000,
+  "1M": 30 * 86_400_000,
+};
+
+export const isIntradayPeriod = (period: PeriodKey) => period in INTRADAY_SPAN_MS;
+
+/** Tamaño de cubo para unificar series de distinta frecuencia (acciones cada 30 min, cripto cada hora…). */
+const INTRADAY_BUCKET_MS: Partial<Record<PeriodKey, number>> = {
+  "1D": 5 * 60_000,
+  "1W": 3_600_000,
+  "1M": 3_600_000,
+};
+
+/**
+ * Instantes de una gráfica intradía: todos los de las series dentro del
+ * periodo (hasta `now`), ordenados. Si en 1D apenas hay datos (bolsa cerrada,
+ * fin de semana), se muestra la última sesión completa, como hacen los brókers.
+ * Los instantes se agrupan en cubos regulares (un punto por cubo, el último),
+ * así el eje avanza al mismo ritmo con cripto (24/7) y se comprime de noche
+ * si solo hay acciones. Con muchos puntos se submuestrea, conservando el último.
+ */
+export function intradayDates(
+  series: Iterable<readonly ClosePoint[]>,
+  period: PeriodKey,
+  now: Date,
+  maxPoints = 400,
+): string[] {
+  const span = INTRADAY_SPAN_MS[period] ?? INTRADAY_SPAN_MS["1D"]!;
+  const all = new Set<string>();
+  for (const points of series) for (const p of points) all.add(p.date);
+  const bucket = INTRADAY_BUCKET_MS[period] ?? 60_000;
+  const byBucket = new Map<number, string>();
+  for (const d of [...all].sort()) {
+    const time = Date.parse(d);
+    if (time <= now.getTime()) byBucket.set(Math.floor(time / bucket), d);
+  }
+  const sorted = [...byBucket.values()];
+  if (sorted.length === 0) return [];
+
+  const start = new Date(now.getTime() - span).toISOString();
+  let dates = sorted.filter((d) => d >= start);
+  if (period === "1D" && dates.length < 12) {
+    const lastSession = sorted[sorted.length - 1].slice(0, 10);
+    dates = sorted.filter((d) => d.slice(0, 10) === lastSession);
+  }
+  // Se parte del último dato anterior (el cierre previo), como los brókers:
+  // la variación del periodo se mide frente a él y no frente a la apertura.
+  const previous = sorted.filter((d) => d < (dates[0] ?? start)).at(-1);
+  if (previous) dates = [previous, ...dates];
+  if (dates.length <= maxPoints) return dates;
+  const every = Math.ceil(dates.length / maxPoints);
+  const sampled = dates.filter((_, i) => i % every === 0);
+  if (sampled[sampled.length - 1] !== dates[dates.length - 1]) sampled.push(dates[dates.length - 1]);
+  return sampled;
+}

@@ -46,7 +46,7 @@ export type PortfolioStatus =
 
 /**
  * Cartera valorada con los últimos precios guardados. Refresca precios al
- * montarse y cada 2 minutos mientras la pestaña está visible.
+ * montarse y cada 30 s mientras la pestaña está visible.
  */
 export function usePortfolio() {
   const live = useLiveQuery(loadAll);

@@ -60,6 +60,10 @@ export interface PriceHistoryPoint {
   close: DecimalString;
 }
 
+/** Periodos con datos intradía: 1D (5 min), 1W (30 min) y 1M (1 h). */
+export type IntradayRange = "1D" | "1W" | "1M";
+export const INTRADAY_RANGES: IntradayRange[] = ["1D", "1W", "1M"];
+
 export interface PriceHistoryResponse {
   key: string;
   points: PriceHistoryPoint[];

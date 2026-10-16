@@ -20,7 +20,7 @@ import { Card } from "@/components/ui/card";
 import { VariationAmount, VariationBadge } from "@/components/variation-badge";
 import type { Repositories } from "@/data/repositories";
 import { allocationByAsset, allocationByType } from "@/domain/allocation";
-import { periodChange, periodDates, portfolioHistory } from "@/domain/history";
+import { addDays, intradayDates, isIntradayPeriod, periodChange, periodDates, portfolioHistory } from "@/domain/history";
 import { PERIODS, type PeriodKey } from "@/domain/models";
 import { sortTransactions } from "@/domain/portfolio";
 import { useLiveQuery } from "@/hooks/use-live-query";
@@ -29,6 +29,7 @@ import { usePriceHistories } from "@/hooks/use-price-histories";
 import { formatCurrency, formatPercent, todayIso } from "@/lib/format";
 import { annualReturn } from "@/domain/performance";
 import { ASSET_TYPE_LABELS } from "@/lib/labels";
+import type { IntradayRange } from "@/prices/types";
 import { cn } from "@/lib/utils";
 
 // Recharts se carga aparte para no retrasar el primer pintado.
@@ -140,7 +141,19 @@ function HomeContent({
     d.setUTCDate(d.getUTCDate() - 7);
     return d.toISOString().slice(0, 10);
   }, [dates]);
-  const histories = usePriceHistories(involvedAssets, from);
+  const intraday = isIntradayPeriod(period) ? (period as IntradayRange) : null;
+  // En 1D, 1S y 1M solo hacen falta los activos que se tenían en ese tiempo.
+  const recentAssets = useMemo(() => {
+    const since = addDays(today, -35);
+    const ids = new Set([
+      ...[...data.state.positions.values()].filter((p) => p.quantity.gt(0)).map((p) => p.assetId),
+      ...data.transactions.filter((t) => t.assetId && t.date.slice(0, 10) >= since).map((t) => t.assetId!),
+    ]);
+    return involvedAssets.filter((a) => ids.has(a.id));
+  }, [involvedAssets, data.state.positions, data.transactions, today]);
+  const daily = usePriceHistories(involvedAssets, intraday ? null : from);
+  const detailed = usePriceHistories(recentAssets, intraday ? from : null, intraday);
+  const histories = intraday ? detailed : daily;
 
   const openAssets = useMemo(
     () => v.positions.map((p) => data.assets.get(p.position.assetId)).filter((a): a is NonNullable<typeof a> => Boolean(a)),
@@ -153,9 +166,12 @@ function HomeContent({
     if (histories.status !== "ready") return null;
     const currentPrices = new Map([...data.prices].map(([id, p]) => [id, new Decimal(p.price)]));
     const transactions = focused ? data.transactions.filter((t) => t.assetId === focused.position.assetId) : data.transactions;
-    const points = portfolioHistory(transactions, histories.closes, dates, { currentPrices });
+    const relevant = focused ? [histories.closes.get(focused.position.assetId) ?? []] : histories.closes.values();
+    const chartDates = intraday ? intradayDates(relevant, intraday, new Date()) : dates;
+    if (chartDates.length === 0) return null;
+    const points = portfolioHistory(transactions, histories.closes, chartDates, { currentPrices });
     return { points, change: periodChange(points) };
-  }, [histories, data.prices, data.transactions, dates, focused]);
+  }, [histories, intraday, data.prices, data.transactions, dates, focused]);
 
   const heroValue = focused ? (focused.marketValue ?? new Decimal(0)) : v.totalValue;
   const invested = focused ? focused.position.cost : v.invested;
@@ -225,12 +241,12 @@ function HomeContent({
         />
       </Card>
 
-      {/* Segunda fila: dos gráficos, uno junto al otro. */}
+      {/* Segunda fila: dos gráficos, uno junto al otro (apilados en móvil, donde no caben legibles). */}
       {byAsset.length > 0 && (
-        <div className="grid grid-cols-2 gap-3 md:gap-5">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2 md:gap-5">
           <AllocationCard byType={byType} byAsset={byAsset} data={data} />
-          <Card className="min-w-0 p-4 md:p-6">
-            <h2 className="text-sm font-medium md:text-base">Rentabilidad por posición</h2>
+          <Card className="min-w-0">
+            <h2 className="font-medium">Rentabilidad por posición</h2>
             <p className="mt-0.5 text-xs text-text-muted">No realizado</p>
             <div className="@container mt-3">
               <PositionReturnsChart
@@ -306,9 +322,9 @@ function AllocationCard({
         : (data.assets.get(key)?.name ?? "Activo");
 
   return (
-    <Card className="min-w-0 p-4 md:p-6">
+    <Card className="min-w-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-medium md:text-base">Distribución</h2>
+        <h2 className="font-medium">Distribución</h2>
         <div role="radiogroup" aria-label="Agrupar por" className="flex gap-0.5 rounded-full bg-surface-2 p-0.5">
           {(["asset", "type"] as const).map((m) => (
             <button

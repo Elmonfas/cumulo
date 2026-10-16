@@ -1,6 +1,6 @@
 import Decimal from "decimal.js";
 import { describe, expect, it } from "vitest";
-import { periodChange, periodDates, portfolioHistory, type ClosePoint, type HistoryPoint } from "./history";
+import { intradayDates, periodChange, periodDates, portfolioHistory, type ClosePoint, type HistoryPoint } from "./history";
 import type { Transaction } from "./models";
 import { buildPortfolio } from "./portfolio";
 import { valuePortfolio } from "./valuation";
@@ -125,5 +125,40 @@ describe("portfolioHistory — años pasados", () => {
     const current = new Map([["A", new Decimal("100")]]);
     const [p] = portfolioHistory(history, closes, ["2025-12-31"], { currentPrices: current, currentOnLastDay: false });
     expect(p.value.toString()).toBe("120");
+  });
+});
+
+describe("intradayDates", () => {
+  const p = (date: string) => ({ date, close: new Decimal(1) });
+  const now = new Date("2026-10-16T08:00:00Z");
+
+  it("24 h hacia atrás uniendo las series y sin pasar de ahora", () => {
+    const crypto = [p("2026-10-15T07:00:00.000Z"), p("2026-10-15T09:00:00.000Z"), p("2026-10-16T07:55:00.000Z"), p("2026-10-16T09:00:00.000Z")];
+    const stock = [p("2026-10-15T09:00:00.000Z"), p("2026-10-15T15:30:00.000Z")];
+    const many = Array.from({ length: 20 }, (_, i) => p(new Date(Date.parse("2026-10-15T10:00:00Z") + i * 600_000).toISOString()));
+    const dates = intradayDates([crypto, stock, many], "1D", now);
+    // Empieza en el último dato anterior a las 24 h (07:00) y sigue con los de dentro.
+    expect(dates[0]).toBe("2026-10-15T07:00:00.000Z");
+    expect(dates[1]).toBe("2026-10-15T09:00:00.000Z");
+    expect(dates.at(-1)).toBe("2026-10-16T07:55:00.000Z");
+    expect(dates).toContain("2026-10-15T15:30:00.000Z");
+  });
+
+  it("con la bolsa cerrada, la última sesión", () => {
+    const sunday = new Date("2026-10-18T12:00:00Z");
+    const friday = Array.from({ length: 30 }, (_, i) => p(new Date(Date.parse("2026-10-16T07:00:00Z") + i * 900_000).toISOString()));
+    const thursday = [p("2026-10-15T15:00:00.000Z")];
+    const dates = intradayDates([[...thursday, ...friday]], "1D", sunday);
+    // El cierre del jueves y la sesión del viernes.
+    expect(dates).toHaveLength(31);
+    expect(dates[0]).toBe("2026-10-15T15:00:00.000Z");
+    expect(dates.slice(1).every((d) => d.startsWith("2026-10-16"))).toBe(true);
+  });
+
+  it("submuestrea conservando el último punto", () => {
+    const series = Array.from({ length: 1000 }, (_, i) => p(new Date(Date.parse("2026-10-10T00:00:00Z") + i * 300_000).toISOString()));
+    const dates = intradayDates([series], "1W", new Date("2026-10-16T00:00:00Z"), 100);
+    expect(dates.length).toBeLessThanOrEqual(101);
+    expect(dates.at(-1)).toBe(series.at(-1)!.date);
   });
 });

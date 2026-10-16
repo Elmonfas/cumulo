@@ -24,9 +24,20 @@ La V1 trabaja solo en EUR:
 - Londres cotiza en peniques (`GBp`): se divide entre 100 antes de convertir.
 - Para cotizar en EUR, mejor elegir el listado europeo del activo. Buscar por ISIN pone primero los listados en EUR.
 
+## Intradía (1D, 1S, 1M)
+
+`/api/prices/intraday?key=…&range=1D|1W|1M` devuelve precios en EUR con su hora exacta:
+- Yahoo: velas de 5 min (1D, 5 días hacia atrás para cubrir fines de semana), 30 min (1S) y 1 h (1M). Las divisas se convierten con el par intradía.
+- CoinGecko: `market_chart` sin `interval` (5 min para 1 día, horario de 2 a 90 días). Si responde 429, se usa el par `XXX-EUR` de Yahoo.
+- La app une las series en cubos regulares (5 min / 1 h) y mide la variación frente al último dato anterior al periodo (el cierre previo).
+
+## Histórico de cripto de más de un año
+
+CoinGecko gratis solo da 365 días. Si se pide más, el tramo anterior se completa con el par `XXX-EUR` de Yahoo y solo se acepta si en el día de unión ambas fuentes difieren menos de un 5 % (ver `src/prices/merge-history.ts`).
+
 ## Cachés
 
-- **CDN (Vercel):** precios 20 s, búsqueda 1 h, histórico 1 h (`Cache-Control: s-maxage`). Yahoo deja sin cierre la última sesión durante horas: ese día se completa con el último precio de mercado.
+- **CDN (Vercel):** precios 20 s, intradía 1–15 min, búsqueda 1 h, histórico 1 h (`Cache-Control: s-maxage`). Yahoo deja sin cierre la última sesión durante horas: ese día se completa con el último precio de mercado.
 - **Navegador:** el último precio de cada activo se guarda en IndexedDB y se refresca si tiene más de 25 s, y cada 30 s con la app abierta y visible (y al volver a ella).
 - **Retraso de la fuente:** aun así no es tiempo real. Yahoo suele dar las bolsas europeas con unos 15 min de retraso y CoinGecko con 1–2 min; la app muestra siempre la hora de cada precio.
 - **Si una fuente falla**, se sigue mostrando el último precio guardado con su hora. Un precio nunca rompe la app.

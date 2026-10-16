@@ -1,6 +1,6 @@
 import "server-only";
 import Decimal from "decimal.js";
-import type { AssetCandidate, PriceHistoryPoint, PriceQuote } from "./types";
+import type { AssetCandidate, IntradayRange, PriceHistoryPoint, PriceQuote } from "./types";
 
 /**
  * Cliente de CoinGecko. Con COINGECKO_DEMO_API_KEY usa la clave demo
@@ -63,6 +63,13 @@ interface MarketChart {
   prices: [number, number][];
 }
 
+/** Símbolo de una cripto ("bitcoin" → "BTC"), para buscar su histórico largo en otra fuente. */
+export async function coinSymbol(id: string): Promise<string | null> {
+  const result = await get<SearchResult>(`/search?query=${encodeURIComponent(id)}`, 604_800);
+  const coin = result.coins.find((c) => c.id === id);
+  return coin && /^[A-Za-z0-9]{1,15}$/.test(coin.symbol) ? coin.symbol.toUpperCase() : null;
+}
+
 /** Cierres diarios en EUR (la API gratuita cubre como mucho 365 días). */
 export async function historyCoinGecko(id: string, from: Date): Promise<PriceHistoryPoint[]> {
   const days = Math.min(365, Math.max(1, Math.ceil((Date.now() - from.getTime()) / 86_400_000) + 1));
@@ -75,4 +82,19 @@ export async function historyCoinGecko(id: string, from: Date): Promise<PriceHis
     byDay.set(new Date(timestamp).toISOString().slice(0, 10), new Decimal(String(price)).toString());
   }
   return [...byDay].map(([date, close]) => ({ date, close }));
+}
+
+const INTRADAY_DAYS: Record<IntradayRange, number> = { "1D": 1, "1W": 8, "1M": 31 };
+const INTRADAY_CACHE: Record<IntradayRange, number> = { "1D": 60, "1W": 300, "1M": 900 };
+
+/**
+ * Precios intradía en EUR con su hora. Sin `interval`, CoinGecko elige la
+ * granularidad: 5 min para 1 día y horaria de 2 a 90 días.
+ */
+export async function intradayCoinGecko(id: string, range: IntradayRange): Promise<PriceHistoryPoint[]> {
+  const chart = await get<MarketChart>(
+    `/coins/${encodeURIComponent(id)}/market_chart?vs_currency=eur&days=${INTRADAY_DAYS[range]}&precision=full`,
+    INTRADAY_CACHE[range],
+  );
+  return chart.prices.map(([timestamp, price]) => ({ date: new Date(timestamp).toISOString(), close: new Decimal(String(price)).toString() }));
 }

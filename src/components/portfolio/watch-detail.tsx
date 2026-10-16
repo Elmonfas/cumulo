@@ -38,7 +38,7 @@ export function WatchDetail({ data, assetId, onUnwatched }: { data: PortfolioDat
         </div>
       </div>
 
-      <AssetPriceChart asset={asset} transactions={[]} currentPrice={price} averageCost={null} />
+      <AssetPriceChart asset={asset} transactions={[]} currentPrice={price} currentAt={cached?.updatedAt} averageCost={null} />
 
       <dl className="divide-y divide-border rounded-2xl bg-surface-2 px-4">
         <Row label="Precio actual" value={price ? money(price) : "—"} />

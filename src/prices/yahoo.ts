@@ -2,9 +2,9 @@ import "server-only";
 import Decimal from "decimal.js";
 import YahooFinance from "yahoo-finance2";
 import type { AssetType } from "@/domain/models";
-import { type ChartResult, closesFromChart } from "./chart-closes";
+import { type ChartResult, closesFromChart, convertSeries, intradayFromChart } from "./chart-closes";
 import { fxSymbol, normalizeCurrency } from "./fx";
-import type { AssetCandidate, PriceHistoryPoint, PriceQuote } from "./types";
+import type { AssetCandidate, IntradayRange, PriceHistoryPoint, PriceQuote } from "./types";
 
 /**
  * Cliente de Yahoo Finance (yahoo-finance2). Es una API no oficial y gratuita:
@@ -144,4 +144,29 @@ export async function historyYahoo(symbol: string, from: Date): Promise<PriceHis
     if (rate) result.push({ date: p.date, close: p.close.times(divisor).times(rate).toString() });
   }
   return result;
+}
+
+const INTRADAY: Record<IntradayRange, { interval: "5m" | "30m" | "60m"; days: number }> = {
+  // 5 días hacia atrás: con el mercado cerrado (fin de semana) sigue habiendo una sesión que mostrar.
+  "1D": { interval: "5m", days: 5 },
+  "1W": { interval: "30m", days: 9 },
+  "1M": { interval: "60m", days: 33 },
+};
+
+async function intradayChart(symbol: string, range: IntradayRange) {
+  const { interval, days } = INTRADAY[range];
+  const period1 = new Date(Date.now() - days * 86_400_000);
+  const chart = (await yahoo.chart(symbol, { period1, interval }, { validateResult: false })) as ChartResult;
+  return { currency: chart.meta.currency ?? "EUR", points: intradayFromChart(chart) };
+}
+
+/** Precios intradía en EUR con su hora exacta. */
+export async function intradayYahoo(symbol: string, range: IntradayRange): Promise<PriceHistoryPoint[]> {
+  const { currency: rawCurrency, points } = await intradayChart(symbol, range);
+  const { currency, price: divisor } = normalizeCurrency(rawCurrency, new Decimal(1));
+  const scaled = points.map((p) => ({ date: p.date, close: p.close.times(divisor) }));
+  if (currency === "EUR") return scaled.map((p) => ({ date: p.date, close: p.close.toString() }));
+
+  const fx = await intradayChart(fxSymbol(currency), range);
+  return convertSeries(scaled, fx.points).map((p) => ({ date: p.date, close: p.close.toString() }));
 }

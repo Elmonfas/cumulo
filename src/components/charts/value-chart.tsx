@@ -1,15 +1,18 @@
 "use client";
 
+import { useId } from "react";
 import { Area, AreaChart, CartesianGrid, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { HistoryPoint } from "@/domain/history";
-import { formatAxisDate, formatCompactCurrency, formatCurrency, formatDate, isLongRange } from "@/lib/format";
+import { axisWidth, currencyAxisFormatter, formatPointDate, formatTimeTick, hasTime, niceScale, timeAxisTicks } from "@/lib/chart-axis";
+import { areAmountsHidden, formatAxisDate, formatCurrency, isLongRange } from "@/lib/format";
 import { ChartTooltipPill } from "./chart-tooltip";
 
 interface Point {
   date: string;
   // Números solo para la geometría; las etiquetas salen de Decimal.
   value: number;
-  invested: number;
+  /** null si la línea de lo invertido se sale mucho de la escala del valor. */
+  invested: number | null;
   valueLabel: string;
   investedLabel: string;
 }
@@ -28,13 +31,28 @@ export function ValueChart({ points: all, investedLabel }: { points: HistoryPoin
     investedLabel: formatCurrency(p.invested),
   }));
   const longRange = isLongRange(points[0]?.date, points.at(-1)?.date);
+  const dates = data.map((d) => d.date);
+  const intraday = dates.length > 0 && hasTime(dates[0]);
+  const xTicks = timeAxisTicks(dates);
+  // En periodos cortos lo invertido puede quedar muy lejos del valor y aplastaría
+  // la curva: entonces no se dibuja (sigue en el tooltip).
+  const values = data.map((d) => d.value);
+  const low = Math.min(...values);
+  const high = Math.max(...values);
+  const span = Math.max(high - low, high * 0.01);
+  const investedFits = data.every((d) => d.invested === null || (d.invested >= low - span && d.invested <= high + span));
+  if (!investedFits) for (const d of data) d.invested = null;
+  const yScale = niceScale(data.flatMap((d) => (d.invested === null ? [d.value] : [d.value, d.invested])));
+  const axisLabel = currencyAxisFormatter(yScale.ticks, { hidden: areAmountsHidden() });
+  const yWidth = axisWidth(yScale.ticks.map(axisLabel));
+  const gradientId = `fill-value-${useId().replace(/[^\w-]/g, "")}`;
 
   return (
     <div className="h-52 w-full md:h-64" role="img" aria-label="Evolución del patrimonio en el periodo">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ top: 8, right: 4, bottom: 0, left: 0 }}>
           <defs>
-            <linearGradient id="fill-value" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.35} />
               <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
             </linearGradient>
@@ -45,16 +63,19 @@ export function ValueChart({ points: all, investedLabel }: { points: HistoryPoin
             tickLine={false}
             axisLine={false}
             tick={{ fill: "var(--text-muted)", fontSize: 12 }}
-            tickFormatter={(d: string) => formatAxisDate(d, longRange)}
+            ticks={xTicks}
+            interval={xTicks ? 0 : "preserveEnd"}
+            tickFormatter={(d: string) => (intraday ? formatTimeTick(d, dates) : formatAxisDate(d, longRange))}
             minTickGap={24}
           />
           <YAxis
             tickLine={false}
             axisLine={false}
-            width={68}
-            domain={["auto", "auto"]}
+            width={yWidth}
+            domain={yScale.domain}
+            ticks={yScale.ticks}
             tick={{ fill: "var(--text-muted)", fontSize: 12 }}
-            tickFormatter={(v: number) => formatCompactCurrency(String(v))}
+            tickFormatter={axisLabel}
           />
           <Tooltip
             cursor={{ stroke: "var(--border)" }}
@@ -63,7 +84,7 @@ export function ValueChart({ points: all, investedLabel }: { points: HistoryPoin
               if (!point) return null;
               return (
                 <ChartTooltipPill
-                  title={formatDate(point.date)}
+                  title={formatPointDate(point.date)}
                   rows={[
                     { label: "Patrimonio", value: point.valueLabel, dotClassName: "bg-accent" },
                     { label: investedLabel, value: point.investedLabel, dotClassName: "bg-series-2" },
@@ -72,7 +93,16 @@ export function ValueChart({ points: all, investedLabel }: { points: HistoryPoin
               );
             }}
           />
-          <Area type="monotone" dataKey="value" stroke="var(--accent)" strokeWidth={2} fill="url(#fill-value)" animationDuration={200} />
+          <Area
+            type="linear"
+            dataKey="value"
+            stroke="var(--accent)"
+            strokeWidth={1.75}
+            strokeLinejoin="round"
+            fill={`url(#${gradientId})`}
+            activeDot={{ r: 4, fill: "var(--accent)", stroke: "var(--surface)", strokeWidth: 2 }}
+            animationDuration={200}
+          />
           <Line
             type="stepAfter"
             dataKey="invested"

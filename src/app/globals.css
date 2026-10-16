@@ -127,6 +127,12 @@
   }
 }
 
+/* Gráficas: el contorno de foco de Recharts solo con teclado, no al tocar. */
+.recharts-wrapper :focus:not(:focus-visible),
+.recharts-surface:focus:not(:focus-visible) {
+  outline: none;
+}
+
 /* Transición suave entre pantallas (View Transitions, ver app/template.tsx). */
 ::view-transition {
   pointer-events: none;

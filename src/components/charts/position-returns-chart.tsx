@@ -29,11 +29,11 @@ export function PositionReturnsChart({
   const data: Bar[] = positions
     .filter((p) => p.unrealizedPct && p.unrealized)
     .sort((a, b) => b.unrealizedPct!.comparedTo(a.unrealizedPct!))
-    // En media tarjeta de móvil no caben más barras con su etiqueta legible.
-    .slice(0, 6)
+    // Más barras no caben con su etiqueta legible.
+    .slice(0, 8)
     .map((p) => ({
       key: p.position.assetId,
-      label: tickerOf(p.position.assetId).slice(0, positions.length > 4 ? 4 : 6),
+      label: tickerOf(p.position.assetId),
       name: nameOf(p.position.assetId),
       pct: Number(p.unrealizedPct!.times(100).toFixed(2)),
       pctLabel: formatPercent(p.unrealizedPct!),
@@ -53,13 +53,13 @@ export function PositionReturnsChart({
             axisLine={false}
             interval={0}
             height={18}
-            tick={{ fill: "var(--text-muted)", fontSize: 9 }}
+            tick={{ fill: "var(--text-muted)", fontSize: 11 }}
           />
           <YAxis
             tickLine={false}
             axisLine={false}
-            width={36}
-            tick={{ fill: "var(--text-muted)", fontSize: 10 }}
+            width={40}
+            tick={{ fill: "var(--text-muted)", fontSize: 11 }}
             tickFormatter={formatAxisPercent}
           />
           <ReferenceLine y={0} stroke="var(--border)" />
