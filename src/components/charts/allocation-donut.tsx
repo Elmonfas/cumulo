@@ -22,7 +22,7 @@ export function AllocationDonut({ slices, labelOf }: { slices: AllocationSlice[]
   return (
     <div className="@container min-w-0">
       <div className="flex min-w-0 flex-col items-center gap-4 @[18rem]:flex-row @[18rem]:gap-5">
-        <div className="relative size-32 shrink-0 @md:size-40" role="img" aria-label="Distribución de la cartera">
+        <div className="relative size-28 shrink-0 @[15rem]:size-32 @md:size-40" role="img" aria-label="Distribución de la cartera">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie data={data} dataKey="value" nameKey="key" innerRadius="64%" outerRadius="100%" paddingAngle={2} stroke="none" animationDuration={200}>
@@ -35,7 +35,7 @@ export function AllocationDonut({ slices, labelOf }: { slices: AllocationSlice[]
         </div>
         <ul className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5">
           {slices.map((s, i) => (
-            <li key={s.key} className="flex items-center gap-2 text-sm">
+            <li key={s.key} className="flex items-center gap-1.5 text-xs @[15rem]:gap-2 @[15rem]:text-sm">
               <span className={cn("size-2.5 shrink-0 rounded-full", colorOf(s.key, i).dot)} aria-hidden />
               <span className="min-w-0 flex-1 truncate">{labelOf(s.key)}</span>
               <span className="text-text-muted tabular-nums">{formatPercent(s.share, { signed: false, decimals: 0 })}</span>

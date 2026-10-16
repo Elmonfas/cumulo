@@ -176,7 +176,8 @@ export function CalendarGrid({
   compact?: boolean;
   className?: string;
 }) {
-  const gap = compact ? "gap-1" : "gap-1.5";
+  // En compacto, el contenedor (@container del widget) decide: media tarjeta de móvil o más ancho.
+  const gap = compact ? "gap-0.5 @[15rem]:gap-1" : "gap-1.5";
   return (
     <div role="grid" aria-label={label} className={cn("grid", gap, className)}>
       <div role="row" className={cn("grid grid-cols-7", gap)}>
@@ -185,7 +186,7 @@ export function CalendarGrid({
             key={w}
             role="columnheader"
             aria-label={WEEKDAYS_LONG[i]}
-            className={cn("text-center font-medium text-text-muted", compact ? "text-[10px]" : "text-[11px]")}
+            className={cn("text-center font-medium text-text-muted", compact ? "text-[9px] @[15rem]:text-[10px]" : "text-[11px]")}
           >
             {w}
           </span>
@@ -249,7 +250,7 @@ function DayCell({
   onSelect?: () => void;
   compact: boolean;
 }) {
-  const size = compact ? "rounded-lg text-[11px]" : "rounded-xl text-sm";
+  const size = compact ? "rounded-md text-[9px] @[15rem]:rounded-lg @[15rem]:text-[11px]" : "rounded-xl text-sm";
   const day = Number(date.slice(8, 10));
   const buyLevel = activity ? intensity(activity.bought, thresholds) : 0;
   const sellLevel = activity ? intensity(activity.sells ? activity.sold : new Decimal(0), thresholds) : 0;
@@ -312,16 +313,25 @@ function DayCell({
 export function Legend({ compact = false }: { compact?: boolean }) {
   const levels: Intensity[] = [1, 2, 3, 4];
   return (
-    <div className={cn("flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-text-muted", compact ? "mt-3" : "mt-4")}>
+    <div
+      className={cn(
+        "flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 text-xs text-text-muted",
+        compact ? "mt-3 text-[11px] @max-[15rem]:flex-col @max-[15rem]:items-start" : "mt-4",
+      )}
+    >
       {[
         { label: "Compras", color: BUY },
         { label: "Ventas", color: SELL },
       ].map(({ label, color }) => (
-        <span key={label} className="flex items-center gap-1.5">
+        <span key={label} className={cn("flex items-center gap-1.5", compact && "w-full justify-between @[15rem]:w-auto")}>
           {label}
-          <span className="flex gap-1" aria-hidden>
+          <span className={cn("flex", compact ? "gap-0.5" : "gap-1")} aria-hidden>
             {levels.map((l) => (
-              <span key={l} className="size-3.5 rounded-[5px]" style={{ background: tone(color, l) }} />
+              <span
+                key={l}
+                className={cn("rounded-[5px]", compact ? "size-2.5 rounded-[3px] @[15rem]:size-3" : "size-3.5")}
+                style={{ background: tone(color, l) }}
+              />
             ))}
           </span>
         </span>

@@ -9,6 +9,8 @@ import type { Transaction } from "@/domain/models";
 import { formatCurrency, formatMonthYear, todayIso } from "@/lib/format";
 import { CalendarGrid, Legend } from "./operations-calendar";
 
+const MONTH_SHORT = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sept", "oct", "nov", "dic"];
+
 /** Calendario del mes en curso para Inicio; al tocarlo se abre el completo. */
 export function CalendarWidget({ transactions }: { transactions: readonly Transaction[] }) {
   const today = todayIso();
@@ -25,19 +27,28 @@ export function CalendarWidget({ transactions }: { transactions: readonly Transa
   return (
     <Link
       href="/herramientas/calendario"
-      className="group block min-w-0 rounded-card border border-border bg-surface p-5 shadow-card transition-colors outline-none hover:bg-surface-2/40 focus-visible:ring-3 focus-visible:ring-accent/40 md:p-6"
+      className="group @container block min-w-0 rounded-card border border-border bg-surface p-4 shadow-card transition-colors outline-none hover:bg-surface-2/40 focus-visible:ring-3 focus-visible:ring-accent/40 md:p-6"
     >
       <div className="flex items-center justify-between gap-2">
-        <h2 className="font-medium">Calendario</h2>
-        <span className="flex items-center gap-0.5 text-xs text-text-muted transition-colors group-hover:text-text first-letter:uppercase">
-          {formatMonthYear(today.slice(0, 7))}
+        <h2 className="truncate text-sm font-medium @[15rem]:text-base">Calendario</h2>
+        <span className="flex shrink-0 items-center gap-0.5 text-xs text-text-muted transition-colors group-hover:text-text">
+          <span className="hidden @[17rem]:inline">{formatMonthYear(today.slice(0, 7))}</span>
           <ChevronRight className="size-4" aria-hidden />
         </span>
       </div>
-      <p className="mt-0.5 text-xs text-text-muted">
-        {inMonth.length === 0
-          ? "Sin operaciones este mes"
-          : `${inMonth.length} ${inMonth.length === 1 ? "día" : "días"} con operaciones · ${formatCurrency(bought)} comprados`}
+      <p className="mt-0.5 truncate text-xs text-text-muted first-letter:uppercase">
+        {inMonth.length === 0 ? (
+          <>
+            <span className="@[17rem]:hidden">{formatMonthYear(today.slice(0, 7))} · </span>sin operaciones
+          </>
+        ) : (
+          <>
+            <span className="@[17rem]:hidden">{MONTH_SHORT[month - 1]} · </span>
+            {inMonth.length} {inMonth.length === 1 ? "día" : "días"}
+            <span className="hidden @[15rem]:inline"> con operaciones</span>
+            <span className="hidden @[22rem]:inline"> · {formatCurrency(bought)} comprados</span>
+          </>
+        )}
       </p>
       <CalendarGrid
         compact

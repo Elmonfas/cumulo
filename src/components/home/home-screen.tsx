@@ -242,9 +242,9 @@ function HomeContent({
         />
       </Card>
 
-      {/* Segunda fila: distribución y calendario del mes (apilados en móvil). */}
+      {/* Segunda fila: distribución y calendario del mes, siempre en dos columnas. */}
       {byAsset.length > 0 && (
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2 md:gap-5">
+        <div className="grid grid-cols-2 gap-3 md:gap-5">
           <AllocationCard byType={byType} byAsset={byAsset} data={data} />
           <CalendarWidget transactions={data.transactions} />
         </div>
@@ -327,9 +327,9 @@ function AllocationCard({
         : (data.assets.get(key)?.name ?? "Activo");
 
   return (
-    <Card className="min-w-0">
+    <Card className="@container min-w-0 p-4 md:p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-medium">Distribución</h2>
+        <h2 className="text-sm font-medium @[15rem]:text-base">Distribución</h2>
         <div role="radiogroup" aria-label="Agrupar por" className="flex gap-0.5 rounded-full bg-surface-2 p-0.5">
           {(["asset", "type"] as const).map((m) => (
             <button
