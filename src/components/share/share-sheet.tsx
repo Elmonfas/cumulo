@@ -7,6 +7,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import type { ShareOptions } from "@/lib/share-builders";
 import { cardToFile, downloadFile, renderShareCard, shareOrDownload, type CardFormat, type CardModel, type CardTheme } from "@/lib/share-card";
+import { renderOrbitCard } from "@/lib/share-card-styles/orbita";
 import { cn } from "@/lib/utils";
 
 interface ShareSheetProps {
@@ -24,6 +25,20 @@ const THEMES: { key: CardTheme; label: string; swatch: string }[] = [
   { key: "violet", label: "Morado", swatch: "linear-gradient(135deg, #7C3AED, #4C1D95)" },
 ];
 const THEME_KEY = "cumulo:share-theme";
+
+type CardDesign = "editorial" | "orbita";
+const DESIGNS: { key: CardDesign; label: string; render: typeof renderShareCard }[] = [
+  { key: "editorial", label: "Editorial", render: renderShareCard },
+  { key: "orbita", label: "Órbita", render: renderOrbitCard },
+];
+const DESIGN_KEY = "cumulo:share-design";
+const readDesign = (): CardDesign => {
+  try {
+    return localStorage.getItem(DESIGN_KEY) === "orbita" ? "orbita" : "editorial";
+  } catch {
+    return "editorial";
+  }
+};
 const readTheme = (): CardTheme => {
   try {
     const value = localStorage.getItem(THEME_KEY);
@@ -43,6 +58,7 @@ export function ShareSheet({ open, onOpenChange, title, fileName, build }: Share
   const [format, setFormat] = useState<CardFormat>("story");
   const [showAmounts, setShowAmounts] = useState(false);
   const [theme, setTheme] = useState<CardTheme>(readTheme);
+  const [design, setDesign] = useState<CardDesign>(readDesign);
   const [preview, setPreview] = useState<Preview>({ status: "loading" });
   const [message, setMessage] = useState<string | null>(null);
   // `build` suele ser una función nueva en cada render: se guarda aparte para no regenerar sin parar.
@@ -66,7 +82,8 @@ export function ShareSheet({ open, onOpenChange, title, fileName, build }: Share
           models.current.set(showAmounts, pending);
         }
         const model = await pending;
-        const canvas = await renderShareCard(model, format, theme);
+        const render = DESIGNS.find((d) => d.key === design)!.render;
+        const canvas = await render(model, format, theme);
         const file = await cardToFile(canvas, `${fileName}-${format === "story" ? "historia" : "cuadrada"}.png`);
         if (cancelled) return;
         url = URL.createObjectURL(file);
@@ -79,7 +96,7 @@ export function ShareSheet({ open, onOpenChange, title, fileName, build }: Share
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [open, showAmounts, format, theme, fileName]);
+  }, [open, showAmounts, format, theme, design, fileName]);
 
   const regenerate = (update: () => void) => {
     setPreview({ status: "loading" });
@@ -123,6 +140,32 @@ export function ShareSheet({ open, onOpenChange, title, fileName, build }: Share
               )}
             >
               {f === "story" ? "Historia 9:16" : "Cuadrada 1:1"}
+            </button>
+          ))}
+        </div>
+
+        <div role="radiogroup" aria-label="Diseño" className="grid grid-cols-2 gap-1 rounded-full bg-surface-2 p-1">
+          {DESIGNS.map((d) => (
+            <button
+              key={d.key}
+              type="button"
+              role="radio"
+              aria-checked={design === d.key}
+              onClick={() => {
+                if (design === d.key) return;
+                try {
+                  localStorage.setItem(DESIGN_KEY, d.key);
+                } catch {
+                  // Sin almacenamiento: se recuerda solo en esta hoja.
+                }
+                regenerate(() => setDesign(d.key));
+              }}
+              className={cn(
+                "h-9 rounded-full text-sm font-medium transition-colors outline-none focus-visible:ring-3 focus-visible:ring-accent/40",
+                design === d.key ? "bg-surface text-text shadow-card dark:bg-accent/15 dark:text-accent" : "text-text-muted hover:text-text",
+              )}
+            >
+              {d.label}
             </button>
           ))}
         </div>

@@ -66,10 +66,10 @@ export interface CardModel {
   footer: string;
 }
 
-const SCALE = 2;
-const W = 1080;
+export const SCALE = 2;
+export const W = 1080;
 
-interface Palette {
+export interface Palette {
   /** Fondo: color sólido o degradado vertical [arriba, abajo]. */
   bg: string | [string, string];
   text: string;
@@ -91,7 +91,7 @@ interface Palette {
   other: string;
 }
 
-const PALETTES: Record<CardTheme, Palette> = {
+export const PALETTES: Record<CardTheme, Palette> = {
   dark: {
     bg: "#0B0A10",
     text: "#F4F4F7",
@@ -143,7 +143,7 @@ const PALETTES: Record<CardTheme, Palette> = {
 };
 
 /** Las diez burbujas del símbolo de marca, en un lienzo de 64. */
-const LOGO_CIRCLES: [number, number, number][] = [
+export const LOGO_CIRCLES: [number, number, number][] = [
   [42.07, 47.27, 4.5],
   [35.41, 50.93, 4.97],
   [27.58, 50.9, 5.49],
@@ -156,14 +156,14 @@ const LOGO_CIRCLES: [number, number, number][] = [
   [44.64, 21.22, 11.0],
 ];
 
-const toneColor = (p: Palette, tone?: "positive" | "negative" | "neutral") =>
+export const toneColor = (p: Palette, tone?: "positive" | "negative" | "neutral") =>
   tone === "positive" ? p.positive : tone === "negative" ? p.negative : p.text;
 
-function fontFamily() {
+export function fontFamily() {
   return getComputedStyle(document.body).fontFamily || "system-ui, sans-serif";
 }
 
-function fitText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number) {
+export function fitText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number) {
   if (ctx.measureText(text).width <= maxWidth) return text;
   let t = text;
   while (t.length > 1 && ctx.measureText(`${t}…`).width > maxWidth) t = t.slice(0, -1);
@@ -171,7 +171,7 @@ function fitText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number) 
 }
 
 /** Parte un texto en como mucho `maxLines` líneas que quepan en `maxWidth`. */
-function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxLines: number): string[] {
+export function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxLines: number): string[] {
   const words = text.split(/\s+/);
   const lines: string[] = [];
   let line = "";
@@ -191,7 +191,7 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number,
 }
 
 /** Ajusta el tamaño de fuente para que el texto quepa. */
-function fitFont(ctx: CanvasRenderingContext2D, text: string, weight: number, size: number, maxWidth: number, family: string) {
+export function fitFont(ctx: CanvasRenderingContext2D, text: string, weight: number, size: number, maxWidth: number, family: string) {
   let s = size;
   ctx.font = `${weight} ${s}px ${family}`;
   while (s > 24 && ctx.measureText(text).width > maxWidth) {
@@ -202,14 +202,14 @@ function fitFont(ctx: CanvasRenderingContext2D, text: string, weight: number, si
 }
 
 /** Espaciado entre letras con fallback para navegadores sin `letterSpacing`. */
-function setTracking(ctx: CanvasRenderingContext2D, px: number) {
+export function setTracking(ctx: CanvasRenderingContext2D, px: number) {
   if ("letterSpacing" in ctx) (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = `${px}px`;
 }
 
 const images = new Map<string, Promise<HTMLImageElement | null>>();
 
 /** Carga una imagen una sola vez por sesión (los logos se reutilizan entre temas y formatos). */
-function loadImage(url: string): Promise<HTMLImageElement | null> {
+export function loadImage(url: string): Promise<HTMLImageElement | null> {
   let pending = images.get(url);
   if (!pending) {
     pending = loadImageOnce(url);
@@ -228,7 +228,7 @@ async function loadImageOnce(url: string): Promise<HTMLImageElement | null> {
 }
 
 /** Símbolo de marca. Las burbujas van en un único trazado: con un color translúcido no se oscurecen donde se cruzan. */
-function drawMark(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string) {
+export function drawMark(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string) {
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(size / 64, size / 64);
@@ -242,7 +242,7 @@ function drawMark(ctx: CanvasRenderingContext2D, x: number, y: number, size: num
   ctx.restore();
 }
 
-function drawLockup(ctx: CanvasRenderingContext2D, p: Palette, x: number, y: number, size: number, family: string) {
+export function drawLockup(ctx: CanvasRenderingContext2D, p: Palette, x: number, y: number, size: number, family: string) {
   drawMark(ctx, x, y, size, p.accent);
   ctx.fillStyle = p.text;
   ctx.font = `500 ${Math.round(size * 0.62)}px ${family}`;
@@ -253,7 +253,7 @@ function drawLockup(ctx: CanvasRenderingContext2D, p: Palette, x: number, y: num
   setTracking(ctx, 0);
 }
 
-function hairline(ctx: CanvasRenderingContext2D, p: Palette, x: number, y: number, w: number) {
+export function hairline(ctx: CanvasRenderingContext2D, p: Palette, x: number, y: number, w: number) {
   ctx.fillStyle = p.hairline;
   ctx.fillRect(x, y, w, 2);
 }
