@@ -1,44 +1,84 @@
-# Prompt: propuestas de diseño para las tarjetas de compartir de cúmulo
+# Prompt para Claude Design: tarjetas para compartir de cúmulo
 
-Copia todo lo que hay debajo de la línea en una sesión nueva de Claude Code abierta en este repositorio.
+Copia todo lo que hay debajo de la línea en Claude Design. Cuando elijas una propuesta, pásale a Claude Code la imagen y le pides que la implemente en `src/lib/share-card.ts`.
 
 ---
 
-Quiero que diseñes **propuestas alternativas** para las tarjetas de compartir (share cards) de cúmulo. Ya existe un diseño; tu trabajo es proponer otros mejores para que yo elija. No sustituyas el actual: el tuyo tiene que convivir con él.
+Diseña las **tarjetas para compartir** de cúmulo, una app de inversión. Son imágenes que el usuario genera desde la app para enseñar su rentabilidad en Instagram Stories, WhatsApp o X. Quiero **3 direcciones visuales distintas** entre sí para elegir una.
 
-## Contexto
+## La marca
 
-- cúmulo es una PWA de inversión (Next.js + TypeScript, ver `CLAUDE.md` y `README.md`). Público: inversor particular español, 25–40 años, que comparte su rentabilidad en Instagram Stories, WhatsApp y X.
-- Las tarjetas se dibujan con la API de **Canvas 2D** en el navegador (`src/lib/share-card.ts`, función `renderShareCard(model, format, theme)`). Nada pasa por un servidor: es una promesa de privacidad de la app.
-- Los datos llegan en un `CardModel` genérico (cabecera, cifra protagonista, gráfica de línea/donut/barras, hasta 6 cifras clave, fecha) que rellenan los builders de `src/lib/share-builders.ts` para cuatro tipos: posición, operación (compra/venta), cartera y "tu año".
-- Formatos: historia 9:16 (1080×1920) y cuadrada 1:1 (1080×1080), exportadas a 2× (2160 px de ancho).
-- Por defecto la tarjeta **no muestra importes en euros**, solo porcentajes y precios públicos; con el interruptor "Mostrar importes" añade euros. Tu diseño debe verse completo y equilibrado en ambos casos.
-- El diseño actual (dirección "editorial de marca"): el símbolo de cúmulo (diez burbujas formando una "c") enorme y recortado en la esquina, cifra protagonista enorme en un solo color, cifras clave como lista tipográfica con filetes, sin brillos ni cristal, y tres temas (oscuro, claro y morado). Míralo antes de empezar: abre la app (`pnpm dev`), ve a Cartera → Compartir y prueba los temas.
+- **cúmulo**: app para seguir inversiones (acciones, ETF, cripto) pensada para el inversor particular español de 25–40 años. Tono: claro, honesto, «tus inversiones, sin humo». Nada de estética de casino, trading agresivo o cripto-bro.
+- **Logotipo**: la palabra «cúmulo» en minúsculas (Geist, peso 500) y un símbolo de diez burbujas de tamaño creciente que dibujan una «c», como un cúmulo de nubes. Color de marca: morado `#7C3AED` (claro) / lila `#A78BFA` (oscuro).
+- **Tipografía**: Geist Sans; cifras con números tabulares.
+- **Colores** (oscuro / claro):
+  - fondo `#0A0A0F` / `#F5F5F8`; superficie `#14141B` / `#FFFFFF`; texto `#F4F4F7` / `#0E0E14`; texto secundario `#8B8A9B` / `#6B6A7A`
+  - acento `#A78BFA` / `#7C3AED`
+  - subida `#4ADE80` / `#16A34A`; bajada `#F87171` / `#DC2626` (verde y rojo **solo** para subidas y bajadas)
+  - series para gráficos de reparto: morado, amarillo `#FACC15`, verde `#34D399`, rosa `#F472B6`, azul `#60A5FA`, naranja `#FB923C`
+- **Formato es-ES**: `1.234,56 €`, `+57,6 %`, `−3,6 %`, `19 oct 2026`.
 
-## Sistema de diseño (obligatorio)
+## Formatos
 
-- Tipografía: Geist Sans (la de la app; usa `getComputedStyle(document.body).fontFamily`). `tabular-nums` para cifras.
-- Colores en `src/app/globals.css` (tokens claro/oscuro). Morado = marca/acento. **Verde y rojo solo para variaciones** (subidas/bajadas). Paleta de series para distribuciones: morado, amarillo, verde, rosa, azul, naranja.
-- Formato es-ES siempre: `1.234,56 €`, `+3,2 %`, `15 oct 2026` (usa `src/lib/format.ts`).
-- Marca: el símbolo está en `LOGO_CIRCLES` de `src/lib/share-card.ts` y en `docs/brand/`.
-- Nada de estética genérica de "dashboard IA": sin degradados morados por defecto, sin cristal, sin brillos neón salvo que tengan una razón.
+- **Historia 9:16**: 1080 × 1920 px.
+- **Cuadrada 1:1**: 1080 × 1080 px (menos contenido: cabecera, cifra protagonista, gráfica pequeña y 2 cifras clave).
+- Debe leerse bien **en miniatura**: una historia de Instagram se ve pequeña al pasar.
 
-## Qué quiero
+## Los cuatro tipos de tarjeta y su contenido
 
-1. **2 o 3 direcciones visuales distintas entre sí** (no variaciones del mismo diseño). Ideas para inspirarte, no obligatorias: póster suizo con retícula marcada; ticket o recibo bursátil; gráfica a sangre como protagonista; estilo Apple Wallet/Fitness; tipografía gigante con el número como elemento gráfico.
-2. Cada dirección debe funcionar en los **4 tipos de tarjeta**, en **ambos formatos** y **con y sin importes**. Textos largos (nombres de fondos como "Vanguard FTSE All-World UCITS ETF USD Accumulation") sin desbordar.
-3. Legible en miniatura (una historia de Instagram se ve pequeña al pasar) y con la marca cúmulo presente pero no invasiva.
+Todas llevan: marca cúmulo, fecha, el activo o el título, **una cifra protagonista** con su etiqueta, una línea secundaria, una gráfica y **cifras clave** (hasta 6 en la historia, 2 en la cuadrada).
 
-## Cómo implementarlo
+1. **Posición** (un activo que tienes)
+   - Activo: «Vanguard FTSE All-World UCITS ETF» (logo circular de Vanguard) · «Posición · ETF»
+   - Protagonista: «Rentabilidad de la posición» **+34,4 %**
+   - Secundaria: «Desde 2 sept 2024 · 777 días»
+   - Gráfica: precio en línea con área, puntos en las compras (morado) y ventas (rosa), y una línea discontinua amarilla «Mi precio medio · 128,45 €»
+   - Cifras: Precio actual 141,20 € · Mi precio medio 128,45 € · Rentabilidad anual +14,6 % · Peso en la cartera 59,5 %
 
-- Trabaja en una rama nueva: `git checkout -b diseno-share-cards-alt`.
-- **No cambies `CardModel` ni los builders** salvo que sea imprescindible (si lo haces, explícalo). Tu código va en archivos nuevos, por ejemplo `src/lib/share-card-styles/<nombre>.ts`, cada uno exportando una función con la misma firma que `renderShareCard`.
-- En `src/components/share/share-sheet.tsx`, añade un selector **"Diseño"** (actual + tus propuestas) junto al de tema, recordado en `localStorage` como el tema. Así puedo comparar con la misma tarjeta y los mismos datos.
-- Respeta las reglas del repo: TypeScript estricto, sin `number` para importes (en el canvas los números solo sirven para la geometría; las etiquetas salen ya formateadas del modelo).
-- Antes de terminar: `pnpm lint && pnpm typecheck && pnpm test`.
+2. **Operación** (una compra o una venta concreta)
+   - «Compra · Cripto» · Bitcoin (logo naranja)
+   - Protagonista: «Desde que compré» **−1,8 %**
+   - Secundaria: «Compré el 14 oct 2026 a 73.616,13 €»
+   - Gráfica: precio desde la compra (datos cada hora) con el punto de compra
+   - Cifras: Precio de compra 73.616,13 € · Precio hoy 72.290,00 € · Días en cartera 5 · Rentabilidad anual «Menos de 1 año»
 
-## Cómo enseñármelo
+3. **Cartera**
+   - «Mi cartera» · «3 posiciones» (avatar con el símbolo de cúmulo)
+   - Protagonista: «Rentabilidad total» **+19,7 %**
+   - Secundaria: «Desde 2 sept 2024»
+   - Gráfica: donut de reparto con leyenda: Vanguard FTSE All-World 56 % · Bitcoin 31 % · Amazon 13 %
+   - Cifras: Rentabilidad anual +13,6 % · No realizado +19,9 % · Mejor posición AAPL +41,4 % · Peor posición BTC −21,9 %
 
-- Genera **capturas PNG de cada dirección** (historia y cuadrada, de una posición, la cartera y "tu año"), con datos de ejemplo, en `docs/share-cards/<dirección>/`. Puedes cargarlas en el navegador del panel y guardar el canvas.
-- Escribe en `docs/share-cards/PROPUESTAS.md`, por cada dirección: la idea en dos frases, por qué funciona para este público y sus puntos débiles.
-- Haz commit en tu rama y **no hagas push ni merge**: elegiré yo.
+4. **Tu año**
+   - «Mi año» · «Mi 2026 en cúmulo»
+   - Protagonista: «Rentabilidad del año hasta hoy» **+8,2 %**
+   - Secundaria: «14 compras · 2 ventas»
+   - Gráfica: barras por mes (E F M A M J J A S O), verdes las que suben y rojas las que bajan
+   - Cifras: Meses aportando 9 de 10 · Racha más larga 6 meses · Mejor mes abr +5,1 % · Mejor compra AMZN +12,3 %
+
+### Privacidad: con y sin importes
+
+Por defecto la tarjeta **no muestra euros de la cartera** (solo porcentajes y precios públicos). Si el usuario activa «Mostrar importes», se añaden dos cifras: «Valor 4.444,44 €» y «Ganancia +1.138,20 €». Cada diseño tiene que verse completo y equilibrado **en los dos casos**.
+
+### Textos largos
+
+Los nombres de fondos pueden ser muy largos («Vanguard FTSE All-World UCITS ETF USD Accumulation»): enseña cómo se cortan o parten sin romper el diseño.
+
+## Qué quiero que me entregues
+
+1. **3 direcciones distintas** (no variaciones de la misma). Algunas ideas, no obligatorias: póster suizo con retícula marcada; ticket o recibo bursátil; gráfica a sangre como protagonista; estilo Apple Wallet/Fitness; tipografía gigante con el número como elemento gráfico.
+2. Para cada dirección:
+   - la tarjeta de **Posición** en historia y en cuadrada;
+   - **Cartera** y **Tu año** en historia;
+   - una versión **con importes** de la de Posición;
+   - si encaja, variantes de tema (oscuro, claro o con el morado de la marca de fondo).
+3. Dos frases por dirección: la idea y por qué funciona para este público.
+
+## Límites técnicos (para que luego se pueda implementar igual)
+
+Las tarjetas se dibujan en el móvil del usuario con Canvas 2D, sin servidor. Así que:
+- usa formas, degradados, texto y la gráfica de datos; evita fotos, ilustraciones a mano, texturas complejas o desenfoques de fondo tipo cristal;
+- solo la tipografía Geist (cualquier peso);
+- los logos de los activos son imágenes pequeñas cuadradas: siempre van dentro de un círculo o un cuadrado redondeado.
+
+Lo que **no** quiero: estética genérica de «dashboard IA» (degradados morados por todas partes, cajas de cristal, brillos neón), ni nada que parezca una app de apuestas.
