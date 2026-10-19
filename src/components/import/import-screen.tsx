@@ -10,7 +10,9 @@ import { getRepositories } from "@/data/repositories";
 import type { TransactionType } from "@/domain/models";
 import { parseTradeRepublicCsv } from "@/importers/trade-republic";
 import { UnrecognizedFormatError } from "@/importers/types";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate, formatQuantity } from "@/lib/format";
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 import { TRANSACTION_TYPE_LABELS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import { commitImport, prepareImport, type ImportPreview } from "@/services/import";
@@ -135,8 +137,8 @@ function UploadStep({
         </div>
         <h2 className="text-lg font-semibold">{busy ? "Leyendo el archivo…" : "Sube tu CSV"}</h2>
         <p className="mt-2 max-w-sm text-sm text-pretty text-text-muted">
-          Usa la «Exportación de transacciones» en CSV de Trade Republic. El archivo se lee en tu dispositivo y no
-          se envía a ningún servidor.
+          En la app de Trade Republic: Perfil → Extractos → Exportación de transacciones, desde la apertura de la
+          cuenta. Súbelo tal cual (sin abrirlo en Excel). Se lee en tu dispositivo y no se envía a ningún servidor.
         </p>
         <input
           ref={input}
@@ -187,6 +189,11 @@ function PreviewStep({
   onConfirm: () => void;
 }) {
   const types = TYPE_ORDER.filter((t) => preview.totals[t]);
+  const importedBefore = preview.rows.filter((r) => r.duplicateOf === "import").length;
+  const manualDuplicates = preview.rows.filter((r) => r.duplicateOf === "manual").length;
+  const skippedReasons = [
+    ...preview.parsed.skipped.reduce((counts, s) => counts.set(s.reason, (counts.get(s.reason) ?? 0) + 1), new Map<string, number>()),
+  ];
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:gap-5">
       <Card>
@@ -194,11 +201,18 @@ function PreviewStep({
         <p className="mt-1 text-2xl font-semibold tabular-nums">
           {preview.newCount} {preview.newCount === 1 ? "operación nueva" : "operaciones nuevas"}
         </p>
-        {preview.duplicateCount > 0 && (
-          <p className="mt-1 text-sm text-text-muted">{preview.duplicateCount} ya estaban importadas y se omitirán.</p>
-        )}
-        {preview.parsed.skipped.length > 0 && (
-          <p className="mt-1 text-sm text-text-muted">{preview.parsed.skipped.length} filas no se importan (depósitos, retiradas u otros movimientos que no son de la cartera).</p>
+        {(importedBefore > 0 || manualDuplicates > 0 || skippedReasons.length > 0) && (
+          <ul className="mt-3 grid gap-1 text-sm text-text-muted">
+            {importedBefore > 0 && <li>{plural(importedBefore, "ya estaba importada", "ya estaban importadas")} y se omite{importedBefore === 1 ? "" : "n"}.</li>}
+            {manualDuplicates > 0 && (
+              <li>{plural(manualDuplicates, "coincide con una operación que registraste a mano", "coinciden con operaciones que registraste a mano")} y se omite{manualDuplicates === 1 ? "" : "n"}.</li>
+            )}
+            {skippedReasons.map(([reason, count]) => (
+              <li key={reason}>
+                {reason}: {plural(count, "fila", "filas")} sin importar.
+              </li>
+            ))}
+          </ul>
         )}
 
         {types.length > 0 && (
@@ -224,16 +238,18 @@ function PreviewStep({
 
       <Card className="p-1.5 md:p-2">
         <ul className="max-h-[26rem] overflow-y-auto">
-          {preview.rows.map(({ transaction: t, duplicate }) => (
+          {preview.rows.map(({ transaction: t, duplicate, duplicateOf }) => (
             <li key={`${t.line}-${t.importHash}`} className={cn("flex items-center gap-3 rounded-2xl px-2.5 py-2.5", duplicate && "opacity-50")}>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium">{t.asset?.name ?? TRANSACTION_TYPE_LABELS[t.type]}</span>
-                <span className="block truncate text-xs text-text-muted">
-                  {TRANSACTION_TYPE_LABELS[t.type]} · {formatDate(t.date)}
+                <span className="block truncate text-xs text-text-muted tabular-nums">
+                  {TRANSACTION_TYPE_LABELS[t.type]} · {formatDate(t.date)} · {formatQuantity(t.quantity)} uds
                 </span>
               </span>
               {duplicate && (
-                <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-[11px] text-text-muted">Duplicada</span>
+                <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-[11px] text-text-muted">
+                  {duplicateOf === "manual" ? "Ya la tienes" : "Ya importada"}
+                </span>
               )}
             </li>
           ))}

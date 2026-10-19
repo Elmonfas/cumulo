@@ -101,3 +101,61 @@ describe("importHash", () => {
     expect(await importHash(["a", "b"], 1)).not.toBe(await importHash(["a", "b"], 2));
   });
 });
+
+describe("importación del CSV real de Trade Republic", () => {
+  let db: CumuloDB;
+  let repos: Repositories;
+  const trSearch: SearchFn = vi.fn(async (query: string) => ({
+    securities:
+      query === "IE00BK5BQT80"
+        ? [{ name: "Vanguard FTSE All-World UCITS ETF", ticker: "VWCE", type: "etf" as const, priceSource: "yahoo" as const, priceSourceId: "VWCE.DE" }]
+        : query === "US0231351067"
+          ? [{ name: "Amazon.com, Inc.", ticker: "AMZN", type: "stock" as const, priceSource: "yahoo" as const, priceSourceId: "AMZN" }]
+          : [],
+    crypto:
+      query === "BTC"
+        ? [
+            { name: "Bitcoin", ticker: "BTC", type: "crypto" as const, priceSource: "coingecko" as const, priceSourceId: "bitcoin" },
+            { name: "Batcat", ticker: "BTC2", type: "crypto" as const, priceSource: "coingecko" as const, priceSourceId: "batcat" },
+          ]
+        : [],
+  }));
+
+  beforeEach(() => {
+    db = createDatabase(`imp-tr-${crypto.randomUUID()}`);
+    repos = createDexieRepositories(db);
+  });
+  afterEach(async () => {
+    await db.delete();
+  });
+
+  async function file() {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const { parseTradeRepublicCsv } = await import("@/importers/trade-republic");
+    return parseTradeRepublicCsv(readFileSync(join(process.cwd(), "src/importers/trade-republic/fixtures/exportacion-2026.csv"), "utf8"));
+  }
+
+  it("importa 3 compras con su activo (ISIN y cripto por ticker) y reimportar no duplica", async () => {
+    const preview = await prepareImport(repos, await file());
+    expect(preview.newCount).toBe(3);
+    expect(preview.totals.buy!.amount.toDecimalPlaces(2).toString()).toBe("160.25");
+    expect(await commitImport(repos, preview, trSearch)).toEqual({ imported: 3 });
+
+    const assets = await repos.assets.list();
+    expect(assets.map((a) => a.priceSourceId).sort()).toEqual(["AMZN", "VWCE.DE", "bitcoin"]);
+
+    const again = await prepareImport(repos, await file());
+    expect(again.newCount).toBe(0);
+    expect(again.rows.every((r) => r.duplicateOf === "import")).toBe(true);
+  });
+
+  it("detecta las compras ya registradas a mano", async () => {
+    const btc = await repos.assets.add({ name: "Bitcoin", ticker: "BTC", type: "crypto", priceSource: "coingecko", priceSourceId: "bitcoin" });
+    await repos.transactions.add({ type: "buy", assetId: btc.id, date: "2026-10-14", quantity: "0.000665", price: "73616.13", fee: "1", tax: "0", origin: "manual" });
+
+    const preview = await prepareImport(repos, await file());
+    expect(preview.newCount).toBe(2);
+    expect(preview.rows.find((r) => r.transaction.asset?.ticker === "BTC")).toMatchObject({ duplicate: true, duplicateOf: "manual" });
+  });
+});

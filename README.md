@@ -107,7 +107,8 @@ Las reglas completas del proyecto están en [CLAUDE.md](CLAUDE.md) y las ideas a
 ## Estado
 
 - ✅ Registro manual, precios, cartera, gráficas, estadísticas, backup, PWA, Renta.
-- 🚧 **Importador de Trade Republic**: el flujo (vista previa, duplicados, confirmación) está hecho, pero falta mapear el formato del CSV oficial «Exportación de transacciones» a partir de un archivo real.
+- ✅ **Importador de Trade Republic** sobre el CSV oficial «Exportación de transacciones»: compras, ventas, detección de duplicados (reimportaciones y operaciones ya registradas a mano) y activos resueltos por ISIN o ticker cripto.
+- 🚧 Dividendos, planes de ahorro e intereses del CSV: se omiten indicando su tipo hasta tener ejemplos reales.
 
 ## Aviso
 

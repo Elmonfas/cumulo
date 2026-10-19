@@ -16,6 +16,8 @@ import { createManualAsset, ensureAsset } from "./transactions";
 export interface PreviewRow {
   transaction: ImportedTransaction;
   duplicate: boolean;
+  /** Por qué se omite: ya importada antes o ya registrada a mano (mismo activo, día y cantidad). */
+  duplicateOf?: "import" | "manual";
 }
 
 export interface ImportPreview {
@@ -29,7 +31,12 @@ export interface ImportPreview {
   problem: string | null;
 }
 
-const assetKey = (ref: ImportedAssetRef) => (ref.isin ? `isin:${ref.isin.toUpperCase()}` : `name:${ref.name.toLowerCase()}`);
+const assetKey = (ref: ImportedAssetRef) =>
+  ref.isin
+    ? `isin:${ref.isin.toUpperCase()}`
+    : ref.type === "crypto" && ref.ticker
+      ? `crypto:${ref.ticker.toUpperCase()}`
+      : `name:${ref.name.toLowerCase()}`;
 
 export async function prepareImport(repositories: Repositories, input: ParsedImport): Promise<ImportPreview> {
   // Depósitos y retiradas no se importan: el efectivo vive en el bróker.
@@ -42,11 +49,34 @@ export async function prepareImport(repositories: Repositories, input: ParsedImp
   const [existing, assets] = await Promise.all([repositories.transactions.list(), repositories.assets.list()]);
   const existingHashes = await repositories.transactions.existingImportHashes(parsed.transactions.map((t) => t.importHash));
 
+  // Operaciones registradas a mano que coinciden con una fila del archivo (mismo
+  // activo por ISIN o ticker cripto, mismo día, tipo y cantidad): se dan por la misma.
+  const assetById = new Map(assets.map((a) => [a.id, a]));
+  const manualKeys = new Map<string, number>();
+  for (const t of existing) {
+    const asset = t.assetId ? assetById.get(t.assetId) : undefined;
+    if (t.origin !== "manual" || !asset) continue;
+    const ref = asset.isin ? `isin:${asset.isin.toUpperCase()}` : asset.type === "crypto" && asset.ticker ? `crypto:${asset.ticker.toUpperCase()}` : null;
+    if (!ref) continue;
+    const key = `${ref}|${t.date.slice(0, 10)}|${t.type}|${new Decimal(t.quantity).toString()}`;
+    manualKeys.set(key, (manualKeys.get(key) ?? 0) + 1);
+  }
+
   const seen = new Set<string>();
-  const rows = parsed.transactions.map((transaction) => {
-    const duplicate = existingHashes.has(transaction.importHash) || seen.has(transaction.importHash);
+  const rows: PreviewRow[] = parsed.transactions.map((transaction) => {
+    if (existingHashes.has(transaction.importHash) || seen.has(transaction.importHash)) {
+      return { transaction, duplicate: true, duplicateOf: "import" };
+    }
     seen.add(transaction.importHash);
-    return { transaction, duplicate };
+    const key = transaction.asset
+      ? `${assetKey(transaction.asset)}|${transaction.date.slice(0, 10)}|${transaction.type}|${new Decimal(transaction.quantity).toString()}`
+      : null;
+    const manual = key ? (manualKeys.get(key) ?? 0) : 0;
+    if (key && manual > 0) {
+      manualKeys.set(key, manual - 1);
+      return { transaction, duplicate: true, duplicateOf: "manual" };
+    }
+    return { transaction, duplicate: false };
   });
   const fresh = rows.filter((r) => !r.duplicate).map((r) => r.transaction);
 
@@ -58,7 +88,12 @@ export async function prepareImport(repositories: Repositories, input: ParsedImp
   }
 
   // Validación con activos provisionales: el mismo ISIN que un activo existente se une a él.
-  const idByIsin = new Map(assets.filter((a) => a.isin).map((a) => [`isin:${a.isin!.toUpperCase()}`, a.id]));
+  const idByIsin = new Map<string, string>([
+    ...assets.filter((a) => a.isin).map((a) => [`isin:${a.isin!.toUpperCase()}`, a.id] as const),
+    ...assets
+      .filter((a) => a.type === "crypto" && a.ticker)
+      .map((a) => [`crypto:${a.ticker!.toUpperCase()}`, a.id] as const),
+  ]);
   const simulated: Transaction[] = [
     ...existing,
     ...fresh.map((t, i) => ({
@@ -105,6 +140,21 @@ export async function resolveImportedAsset(repositories: Repositories, ref: Impo
       const result = await search(isin);
       const candidate: AssetCandidate | undefined = result.securities[0];
       if (candidate) return ensureAsset(repositories, { ...candidate, isin, type: ref.type ?? candidate.type });
+    } catch {
+      // Sin conexión o fuente caída: se crea como activo manual.
+    }
+  }
+
+  // Cripto: llega con su ticker (BTC), sin ISIN. Se busca en CoinGecko por
+  // ticker y se elige la moneda con ese símbolo (la primera es la de más capitalización).
+  const ticker = ref.ticker?.toUpperCase();
+  if (ref.type === "crypto" && ticker) {
+    const existing = assets.find((a) => a.type === "crypto" && a.priceSource === "coingecko" && a.ticker?.toUpperCase() === ticker);
+    if (existing) return existing;
+    try {
+      const result = await search(ticker);
+      const candidate = result.crypto.find((c) => c.ticker?.toUpperCase() === ticker);
+      if (candidate) return ensureAsset(repositories, { ...candidate, type: "crypto" });
     } catch {
       // Sin conexión o fuente caída: se crea como activo manual.
     }
