@@ -46,8 +46,8 @@ const tradeLabel = (m: TradeMarker) =>
 export function AssetPriceChart({ asset, transactions, currentPrice, averageCost, currentAt }: AssetPriceChartProps) {
   const today = todayIso();
   const trades = useMemo(() => transactions.filter((t) => t.type === "buy" || t.type === "sell"), [transactions]);
-  // Sin operaciones (activo seguido) "Todo" no tiene sentido: se empieza por un año.
-  const [period, setPeriod] = useState<PeriodKey>(() => (trades.length ? "ALL" : "1Y"));
+  // Al abrir una ficha se ve la última semana (datos intradía), como en el bróker.
+  const [period, setPeriod] = useState<PeriodKey>("1W");
   const firstTrade = useMemo(() => trades.map((t) => t.date.slice(0, 10)).sort()[0] ?? today, [trades, today]);
 
   // Un único histórico que cubre todos los periodos; luego se recorta.
