@@ -6,7 +6,7 @@ import { annualReturn, buyDetail, sellDetail } from "@/domain/performance";
 import { sortTransactions } from "@/domain/portfolio";
 import { daysBetween } from "@/domain/returns";
 import { priceSeriesWithTrades } from "@/domain/trade-markers";
-import { fetchHistory } from "@/hooks/use-price-histories";
+import { fetchHistory, fetchIntraday } from "@/hooks/use-price-histories";
 import type { PortfolioData } from "@/hooks/use-portfolio";
 import { formatCurrency, formatDate, formatNumber, formatPercent, formatQuantity, todayIso } from "@/lib/format";
 import { ASSET_TYPE_LABELS } from "@/lib/labels";
@@ -18,9 +18,6 @@ export interface ShareOptions {
   showAmounts: boolean;
 }
 
-/** Colores de la paleta de series en tema oscuro (las tarjetas siempre son oscuras). */
-const PALETTE = ["#A78BFA", "#FACC15", "#34D399", "#F472B6", "#60A5FA", "#FB923C"];
-const OTHER = "#8B8A9B";
 const MAX_POINTS = 160;
 
 const tone = (v: Decimal | null | undefined): CardModel["tone"] =>
@@ -38,8 +35,20 @@ const minusDays = (iso: string, days: number) => {
   return d.toISOString().slice(0, 10);
 };
 
+/**
+ * Precios del activo desde `from`. Si es de hace menos de un mes, intradía
+ * (cada 30 min o 1 h), como en la app: con 5 cierres diarios la curva no se
+ * parecería a la real.
+ */
 async function closesFor(asset: Asset, from: string): Promise<ClosePoint[]> {
   if (asset.priceSource === "manual" || !asset.priceSourceId) return [];
+  const age = daysBetween(from, todayIso());
+  try {
+    if (age <= 6) return await fetchIntraday(asset, "1W");
+    if (age <= 29) return await fetchIntraday(asset, "1M");
+  } catch {
+    // Sin intradía: se usan los cierres diarios.
+  }
   try {
     return await fetchHistory(asset, minusDays(from, 7));
   } catch {
@@ -58,7 +67,7 @@ function lineChart(
   baselineLabel?: string,
 ): CardChartLine | undefined {
   const series = priceSeriesWithTrades(
-    to ? closes.filter((p) => p.date <= to) : closes,
+    to ? closes.filter((p) => p.date.slice(0, 10) <= to) : closes,
     trades,
     current && !to ? { date: todayIso(), price: current } : undefined,
     from,
@@ -234,7 +243,7 @@ export async function buildPortfolioCard(data: PortfolioData, { showAmounts }: S
           centerLabel: v.positions.length === 1 ? "activo" : "activos",
           slices: slices.map((s, i) => ({
             share: Number(s.share.toFixed(6)),
-            color: s.key === "other" ? OTHER : PALETTE[i % PALETTE.length],
+            color: s.key === "other" ? ("other" as const) : i,
             label: s.key === "other" ? "Otros" : (data.assets.get(s.key)?.name ?? "Activo"),
           })),
         }

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import type { ShareOptions } from "@/lib/share-builders";
-import { cardToFile, downloadFile, renderShareCard, shareOrDownload, type CardFormat, type CardModel } from "@/lib/share-card";
+import { cardToFile, downloadFile, renderShareCard, shareOrDownload, type CardFormat, type CardModel, type CardTheme } from "@/lib/share-card";
 import { cn } from "@/lib/utils";
 
 interface ShareSheetProps {
@@ -18,6 +18,21 @@ interface ShareSheetProps {
   build: (options: ShareOptions) => Promise<CardModel>;
 }
 
+const THEMES: { key: CardTheme; label: string; swatch: string }[] = [
+  { key: "dark", label: "Oscuro", swatch: "#0B0A10" },
+  { key: "light", label: "Claro", swatch: "#F5F5F8" },
+  { key: "violet", label: "Morado", swatch: "linear-gradient(135deg, #7C3AED, #4C1D95)" },
+];
+const THEME_KEY = "cumulo:share-theme";
+const readTheme = (): CardTheme => {
+  try {
+    const value = localStorage.getItem(THEME_KEY);
+    return value === "light" || value === "violet" ? value : "dark";
+  } catch {
+    return "dark";
+  }
+};
+
 type Preview = { status: "loading" } | { status: "ready"; url: string; file: File } | { status: "error" };
 
 /**
@@ -27,6 +42,7 @@ type Preview = { status: "loading" } | { status: "ready"; url: string; file: Fil
 export function ShareSheet({ open, onOpenChange, title, fileName, build }: ShareSheetProps) {
   const [format, setFormat] = useState<CardFormat>("story");
   const [showAmounts, setShowAmounts] = useState(false);
+  const [theme, setTheme] = useState<CardTheme>(readTheme);
   const [preview, setPreview] = useState<Preview>({ status: "loading" });
   const [message, setMessage] = useState<string | null>(null);
   // `build` suele ser una función nueva en cada render: se guarda aparte para no regenerar sin parar.
@@ -34,6 +50,8 @@ export function ShareSheet({ open, onOpenChange, title, fileName, build }: Share
   useEffect(() => {
     buildRef.current = build;
   }, [build]);
+  // Los datos solo dependen de si se muestran importes: cambiar tema o formato solo redibuja.
+  const models = useRef(new Map<boolean, Promise<CardModel>>());
 
   useEffect(() => {
     if (!open) return;
@@ -41,8 +59,14 @@ export function ShareSheet({ open, onOpenChange, title, fileName, build }: Share
     let url: string | null = null;
     (async () => {
       try {
-        const model = await buildRef.current({ showAmounts });
-        const canvas = await renderShareCard(model, format);
+        let pending = models.current.get(showAmounts);
+        if (!pending) {
+          pending = buildRef.current({ showAmounts });
+          pending.catch(() => models.current.delete(showAmounts));
+          models.current.set(showAmounts, pending);
+        }
+        const model = await pending;
+        const canvas = await renderShareCard(model, format, theme);
         const file = await cardToFile(canvas, `${fileName}-${format === "story" ? "historia" : "cuadrada"}.png`);
         if (cancelled) return;
         url = URL.createObjectURL(file);
@@ -55,7 +79,7 @@ export function ShareSheet({ open, onOpenChange, title, fileName, build }: Share
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [open, showAmounts, format, fileName]);
+  }, [open, showAmounts, format, theme, fileName]);
 
   const regenerate = (update: () => void) => {
     setPreview({ status: "loading" });
@@ -99,6 +123,37 @@ export function ShareSheet({ open, onOpenChange, title, fileName, build }: Share
               )}
             >
               {f === "story" ? "Historia 9:16" : "Cuadrada 1:1"}
+            </button>
+          ))}
+        </div>
+
+        <div role="radiogroup" aria-label="Estilo" className="flex items-center justify-center gap-3">
+          {THEMES.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="radio"
+              aria-checked={theme === t.key}
+              onClick={() => {
+                if (theme === t.key) return;
+                try {
+                  localStorage.setItem(THEME_KEY, t.key);
+                } catch {
+                  // Sin almacenamiento: se recuerda solo en esta hoja.
+                }
+                regenerate(() => setTheme(t.key));
+              }}
+              className="group flex flex-col items-center gap-1.5 rounded-2xl px-2 py-1 text-xs text-text-muted outline-none focus-visible:ring-3 focus-visible:ring-accent/40 aria-checked:text-text"
+            >
+              <span
+                className={cn(
+                  "size-9 rounded-full border border-border transition-shadow",
+                  theme === t.key && "ring-2 ring-accent ring-offset-2 ring-offset-surface",
+                )}
+                style={{ background: t.swatch }}
+                aria-hidden
+              />
+              {t.label}
             </button>
           ))}
         </div>
