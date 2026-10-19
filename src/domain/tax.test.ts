@@ -1,7 +1,7 @@
 import Decimal from "decimal.js";
 import { describe, expect, it } from "vitest";
 import type { AssetType, Transaction } from "./models";
-import { addMonths, savingsTax, taxReport, taxYears } from "./tax";
+import { addMonths, savingsTax, taxReport, taxYears, treatyRate } from "./tax";
 
 let n = 0;
 const tx = (t: Partial<Transaction> & Pick<Transaction, "type" | "date">): Transaction => ({
@@ -13,8 +13,14 @@ const tx = (t: Partial<Transaction> & Pick<Transaction, "type" | "date">): Trans
   origin: "manual",
   ...t,
 });
-const types: Record<string, AssetType> = { X: "stock", C: "crypto", E: "etf" };
-const typeOf = (id: string) => types[id] ?? "other";
+const assets: Record<string, { type: AssetType; isin?: string }> = {
+  X: { type: "stock" },
+  C: { type: "crypto" },
+  E: { type: "etf" },
+  US: { type: "stock", isin: "US0378331005" },
+  CH: { type: "stock", isin: "CH0038863350" },
+};
+const typeOf = (id: string) => assets[id];
 const s = (d: Decimal) => d.toString();
 
 describe("savingsTax (escala del ahorro desde 2025)", () => {
@@ -63,7 +69,9 @@ describe("taxReport", () => {
     expect(s(r.gains)).toBe("347.5");
     expect(s(r.losses)).toBe("0");
     expect(s(r.dividendsGross)).toBe("100");
-    expect(s(r.withholding)).toBe("19");
+    // Sin ISIN, la retención se toma como española.
+    expect(s(r.spanishWithholding)).toBe("19");
+    expect(s(r.doubleTaxDeduction)).toBe("0");
     // Base 447,5 × 19 % = 85,025 → 85,03; menos 19 retenidos = 66,03
     expect(s(r.savingsBase)).toBe("447.5");
     expect(s(r.estimatedTax)).toBe("85.03");
@@ -136,5 +144,78 @@ describe("taxReport", () => {
       tx({ type: "dividend", date: "2026-05-01", price: "4" }),
     ];
     expect(taxYears(transactions)).toEqual([2026, 2025]);
+  });
+});
+
+// Casos verificados a mano en docs/renta-verificacion.md.
+describe("taxReport: intereses y doble imposición internacional", () => {
+  it("caso 1: dividendos de EE. UU. con un 15 % de retención", () => {
+    const r = taxReport([tx({ type: "dividend", assetId: "US", date: "2026-05-15", price: "200", tax: "30" })], 2026, typeOf);
+    // Base 200 × 19 % = 38; deducción = mín(30, 15 % de 200 = 30, 19 % × 200 = 38) = 30
+    expect(r.dividends[0].country).toBe("US");
+    expect(s(r.savingsBase)).toBe("200");
+    expect(s(r.estimatedTax)).toBe("38");
+    expect(s(r.foreignWithholding)).toBe("30");
+    expect(s(r.spanishWithholding)).toBe("0");
+    expect(s(r.doubleTaxDeduction)).toBe("30");
+    expect(s(r.unrecoverableWithholding)).toBe("0");
+    expect(s(r.estimatedResult)).toBe("8");
+  });
+
+  it("caso 2: intereses con retención española y pérdidas que se compensan al 25 %", () => {
+    const r = taxReport(
+      [
+        tx({ type: "buy", assetId: "C", date: "2025-02-01", quantity: "1", price: "3000" }),
+        tx({ type: "sell", assetId: "C", date: "2026-03-01", quantity: "1", price: "2000" }),
+        tx({ type: "interest", date: "2026-06-30", price: "1000", tax: "190" }),
+      ],
+      2026,
+      typeOf,
+    );
+    // RCM 1.000; pérdidas −1.000 compensan el 25 % de 1.000 = 250 → base 750
+    expect(s(r.interestGross)).toBe("1000");
+    expect(s(r.netGains)).toBe("-1000");
+    expect(s(r.savingsBase)).toBe("750");
+    expect(s(r.lossCarryForward)).toBe("750");
+    // 750 × 19 % = 142,50; menos 190 retenidos en España = −47,50 (a devolver)
+    expect(s(r.estimatedTax)).toBe("142.5");
+    expect(s(r.spanishWithholding)).toBe("190");
+    expect(s(r.doubleTaxDeduction)).toBe("0");
+    expect(s(r.estimatedResult)).toBe("-47.5");
+  });
+
+  it("caso 3: retención por encima del límite del convenio (Suiza, 35 %)", () => {
+    const r = taxReport([tx({ type: "dividend", assetId: "CH", date: "2026-04-20", price: "100", tax: "35" })], 2026, typeOf);
+    expect(s(treatyRate("CH"))).toBe("0.15");
+    // Cuota 19; deducción = mín(35 limitado a 15, 19 % × 100 = 19) = 15; no recuperable 35 − 15 = 20
+    expect(s(r.estimatedTax)).toBe("19");
+    expect(s(r.doubleTaxDeduction)).toBe("15");
+    expect(s(r.unrecoverableWithholding)).toBe("20");
+    expect(s(r.estimatedResult)).toBe("4");
+  });
+
+  it("caso 4: con pérdidas, la deducción la limita el tipo medio sobre lo que queda en la base", () => {
+    const r = taxReport(
+      [
+        tx({ type: "buy", assetId: "C", date: "2025-02-01", quantity: "1", price: "3000" }),
+        tx({ type: "sell", assetId: "C", date: "2026-03-01", quantity: "1", price: "1000" }),
+        tx({ type: "dividend", assetId: "US", date: "2026-05-15", price: "1000", tax: "150" }),
+      ],
+      2026,
+      typeOf,
+    );
+    // Pérdidas −2.000 compensan 250 → base 750; cuota 142,50; tipo medio 19 %
+    // Deducción = mín(150, 19 % × mín(1.000, 750) = 142,50) = 142,50; no recuperable 7,50
+    expect(s(r.savingsBase)).toBe("750");
+    expect(s(r.averageRate)).toBe("0.19");
+    expect(s(r.doubleTaxDeduction)).toBe("142.5");
+    expect(s(r.unrecoverableWithholding)).toBe("7.5");
+    expect(s(r.estimatedResult)).toBe("0");
+  });
+
+  it("el país de la retención guardado manda sobre el del ISIN", () => {
+    const r = taxReport([tx({ type: "dividend", assetId: "US", date: "2026-05-15", price: "100", tax: "19", withholdingCountry: "ES" })], 2026, typeOf);
+    expect(s(r.spanishWithholding)).toBe("19");
+    expect(s(r.foreignWithholding)).toBe("0");
   });
 });

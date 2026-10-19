@@ -36,7 +36,7 @@ export interface PortfolioValuation {
   saleProceeds: Decimal;
   /** Valor de la cartera: valor de mercado de las posiciones abiertas. */
   totalValue: Decimal;
-  /** No realizado + realizado + dividendos − comisiones sueltas. */
+  /** No realizado + realizado + dividendos + intereses − comisiones sueltas. */
   totalGain: Decimal;
   missingPrices: number;
 }
@@ -83,7 +83,7 @@ export function valuePortfolio(state: PortfolioState, prices: ReadonlyMap<string
     realized: state.realizedGain,
     saleProceeds: state.saleProceeds,
     totalValue: marketValue,
-    totalGain: unrealized.plus(state.realizedGain).plus(state.dividends).minus(state.fees),
+    totalGain: unrealized.plus(state.realizedGain).plus(state.dividends).plus(state.interest).minus(state.fees),
     missingPrices,
   };
 }

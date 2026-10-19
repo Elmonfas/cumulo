@@ -16,8 +16,8 @@ import type { Transaction, TransactionType } from "./models";
  *   medio ponderado es ese coste entre la cantidad.
  * - No se puede vender más de lo que se tiene en esa fecha.
  * - Depósitos y retiradas (si llegan de una importación) se ignoran.
- * - Dividendo: importe bruto en `price` (cantidad 1), retención en `tax`.
- *   Lo neto suma al total y, si lleva activo con posición, a esa posición.
+ * - Dividendo e interés: importe bruto en `price` (cantidad 1), retención en
+ *   `tax`. Lo neto suma al total y, si lleva activo con posición, a esa posición.
  */
 
 export interface Lot {
@@ -78,6 +78,8 @@ export interface PortfolioState {
   sales: Map<string, SaleResult>;
   /** Dividendos netos y comisiones sueltas, si llegan importados. */
   dividends: Decimal;
+  /** Intereses netos (cuenta remunerada, cupones, staking). */
+  interest: Decimal;
   fees: Decimal;
 }
 
@@ -110,8 +112,9 @@ const SAME_DATE_ORDER: Record<TransactionType, number> = {
   buy: 1,
   sell: 2,
   dividend: 3,
-  fee: 4,
-  withdrawal: 5,
+  interest: 4,
+  fee: 5,
+  withdrawal: 6,
 };
 
 export const transactionAmount = (t: Pick<Transaction, "quantity" | "price">) =>
@@ -124,7 +127,7 @@ export const transactionAmount = (t: Pick<Transaction, "quantity" | "price">) =>
 export function transactionTotal(t: Transaction): Decimal {
   const gross = transactionAmount(t);
   const charges = new Decimal(t.fee).plus(t.tax);
-  return t.type === "sell" || t.type === "dividend" ? gross.minus(charges) : gross.plus(charges);
+  return t.type === "sell" || t.type === "dividend" || t.type === "interest" ? gross.minus(charges) : gross.plus(charges);
 }
 
 /** Orden estable para recorrer el historial. */
@@ -160,6 +163,7 @@ export function createPortfolioState(): PortfolioState {
     realizedGain: new Decimal(0),
     sales: new Map(),
     dividends: new Decimal(0),
+    interest: new Decimal(0),
     fees: new Decimal(0),
   };
 }
@@ -203,6 +207,9 @@ export function applyTransaction(state: PortfolioState, t: Transaction): void {
       if (position) position.dividends = position.dividends.plus(net);
       break;
     }
+    case "interest":
+      state.interest = state.interest.plus(amount.minus(charges));
+      break;
     case "fee":
       state.fees = state.fees.plus(amount).plus(charges);
       break;

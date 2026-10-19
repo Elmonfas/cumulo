@@ -42,7 +42,7 @@ const MAX_AVATAR_LENGTH = 400_000;
 
 const ASSET_TYPES = new Set(["stock", "etf", "crypto", "other"]);
 const PRICE_SOURCES = new Set(["coingecko", "yahoo", "manual"]);
-const TRANSACTION_TYPES = new Set(["buy", "sell", "dividend", "fee", "deposit", "withdrawal"]);
+const TRANSACTION_TYPES = new Set(["buy", "sell", "dividend", "interest", "fee", "deposit", "withdrawal"]);
 const ORIGINS = new Set(["manual", "csv-tr"]);
 const PERIODS = new Set(["1D", "1W", "1M", "YTD", "1Y", "ALL"]);
 
@@ -80,7 +80,8 @@ export function parseBackup(raw: unknown): BackupData {
       !isIsoDate(t.date) ||
       !ORIGINS.has(t.origin as string) ||
       ![t.quantity, t.price, t.fee, t.tax].every(isDecimalString) ||
-      (t.assetId !== undefined && !assetIds.has(t.assetId as string))
+      (t.assetId !== undefined && !assetIds.has(t.assetId as string)) ||
+      (t.withholdingCountry !== undefined && !(typeof t.withholdingCountry === "string" && /^[A-Z]{2}$/.test(t.withholdingCountry)))
     ) {
       throw new InvalidBackupError(`operación ${i + 1} incorrecta.`);
     }

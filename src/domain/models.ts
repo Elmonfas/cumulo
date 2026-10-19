@@ -20,7 +20,7 @@ export interface Asset {
   priceSourceId: string;
 }
 
-export type TransactionType = "buy" | "sell" | "dividend" | "fee" | "deposit" | "withdrawal";
+export type TransactionType = "buy" | "sell" | "dividend" | "interest" | "fee" | "deposit" | "withdrawal";
 export type TransactionOrigin = "manual" | "csv-tr";
 
 export interface Transaction {
@@ -34,6 +34,12 @@ export interface Transaction {
   tax: DecimalString;
   origin: TransactionOrigin;
   importHash?: string;
+  /**
+   * Dividendos e intereses: país (ISO 3166, dos letras) que retuvo `tax`.
+   * "ES" = retención española (pago a cuenta). Si falta, se deduce del ISIN
+   * del activo (ver domain/tax.ts).
+   */
+  withholdingCountry?: string;
 }
 
 export interface PriceCacheEntry {

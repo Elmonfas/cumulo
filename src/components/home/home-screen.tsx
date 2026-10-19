@@ -270,6 +270,7 @@ function HomeContent({
           <Row label="No realizado" value={<VariationAmount value={v.unrealized} format={signedCurrency} />} />
           <Row label="Realizado" value={<VariationAmount value={v.realized} format={signedCurrency} />} />
           {!data.state.dividends.isZero() && <Row label="Dividendos netos" value={formatCurrency(data.state.dividends)} />}
+          {!data.state.interest.isZero() && <Row label="Intereses netos" value={formatCurrency(data.state.interest)} />}
           {!data.state.fees.isZero() && <Row label="Comisiones" value={formatCurrency(data.state.fees.negated())} />}
         </dl>
       </Card>

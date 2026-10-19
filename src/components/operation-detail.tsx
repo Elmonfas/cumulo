@@ -72,7 +72,7 @@ export function OperationDetail({
         </span>,
       ]);
     }
-  } else if (t.type === "dividend") {
+  } else if (t.type === "dividend" || t.type === "interest") {
     rows.push(["Importe bruto", formatCurrency(new Decimal(t.quantity).times(t.price))]);
     rows.push(["Retención", formatCurrency(t.tax)]);
     if (!new Decimal(t.fee).isZero()) rows.push(["Comisión", formatCurrency(t.fee)]);

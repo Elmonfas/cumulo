@@ -13,15 +13,27 @@ import { buildPortfolio, transactionTotal, type ConsumedLot } from "./portfolio"
  *   homogéneos en los dos meses anteriores o posteriores; se difiere a cuando
  *   se vendan esos valores. Se aplica en proporción a lo recomprado. A la
  *   cripto no se le aplica aquí (no son valores admitidos a negociación).
- * - Dividendos: rendimientos del capital mobiliario. Íntegro = bruto;
- *   retención = impuesto ya pagado a cuenta.
+ * - Dividendos e intereses: rendimientos del capital mobiliario (RCM).
+ *   Íntegro = bruto; rendimiento neto = bruto − comisiones.
+ * - Retenciones: solo la española (país "ES") es pago a cuenta. La retenida
+ *   en el extranjero da derecho a la deducción por doble imposición
+ *   internacional (art. 80 LIRPF), que es el menor de:
+ *   a) el impuesto pagado fuera, limitado al tipo del convenio (15 % por
+ *      defecto; tabla por país en TREATY_RATES), y
+ *   b) el tipo medio del ahorro aplicado al rendimiento extranjero que
+ *      queda en la base (la base no puede superarse).
+ *   Lo retenido fuera por encima de esa deducción no se recupera en la
+ *   declaración (lo que pase del convenio se podría reclamar en el país de
+ *   origen).
+ * - El país de la retención es `withholdingCountry`; si falta, el del ISIN
+ *   del valor; y sin valor (intereses de la cuenta), España.
  * - Integración y compensación (art. 49): si un saldo es negativo, compensa
  *   el otro hasta el 25 %. El resto queda para los 4 años siguientes.
  * - Escala del ahorro desde 2025: 19 % hasta 6.000 €, 21 % hasta 50.000 €,
  *   23 % hasta 200.000 €, 27 % hasta 300.000 € y 30 % a partir de ahí.
  *
- * No incluye pérdidas de años anteriores, la deducción por doble imposición
- * internacional ni los gastos de custodia. Es una estimación, no un borrador.
+ * No incluye pérdidas de años anteriores ni los gastos de custodia. Es una
+ * estimación, no un borrador.
  */
 
 export const SAVINGS_BRACKETS: { upTo: Decimal | null; rate: Decimal }[] = [
@@ -33,6 +45,11 @@ export const SAVINGS_BRACKETS: { upTo: Decimal | null; rate: Decimal }[] = [
 ];
 
 const COMPENSATION_LIMIT = new Decimal("0.25");
+
+/** Tipo de retención en origen del convenio con España para dividendos, por país (ISO de 2 letras). */
+export const DEFAULT_TREATY_RATE = new Decimal("0.15");
+export const TREATY_RATES: Readonly<Record<string, Decimal>> = {};
+export const treatyRate = (country: string) => TREATY_RATES[country] ?? DEFAULT_TREATY_RATE;
 const WASH_SALE_TYPES: AssetType[] = ["stock", "etf"];
 
 /** Cuota de la base del ahorro por tramos. */
@@ -75,12 +92,16 @@ export interface TaxSale {
   repurchases: { date: string; quantity: Decimal }[];
 }
 
-export interface TaxDividend {
+/** Rendimiento del capital mobiliario: un dividendo o un interés. */
+export interface TaxIncome {
   transactionId: string;
+  kind: "dividend" | "interest";
   assetId?: string;
   date: string;
   gross: Decimal;
   withholding: Decimal;
+  /** País que retuvo ("ES" = retención española). */
+  country: string;
   fee: Decimal;
   net: Decimal;
 }
@@ -88,7 +109,8 @@ export interface TaxDividend {
 export interface TaxReport {
   year: number;
   sales: TaxSale[];
-  dividends: TaxDividend[];
+  /** Dividendos e intereses del año. */
+  dividends: TaxIncome[];
   /** Suma de ventas con ganancia. */
   gains: Decimal;
   /** Suma de ventas con pérdida (negativa), ya sin la parte diferida. */
@@ -99,15 +121,25 @@ export interface TaxReport {
   transmissionValue: Decimal;
   acquisitionValue: Decimal;
   dividendsGross: Decimal;
-  withholding: Decimal;
+  interestGross: Decimal;
+  /** Retenciones españolas: pagos a cuenta. */
+  spanishWithholding: Decimal;
+  /** Retenciones en el extranjero (todas). */
+  foreignWithholding: Decimal;
   /** Saldo de rendimientos del capital mobiliario (bruto − comisiones). */
   netDividends: Decimal;
+  /** Tipo medio de la base del ahorro (cuota / base). */
+  averageRate: Decimal;
+  /** Deducción por doble imposición internacional. */
+  doubleTaxDeduction: Decimal;
+  /** Retención extranjera que no se recupera en la declaración. */
+  unrecoverableWithholding: Decimal;
   /** Base liquidable del ahorro tras compensar saldos. */
   savingsBase: Decimal;
   /** Saldo negativo que queda para los 4 años siguientes. */
   lossCarryForward: Decimal;
   estimatedTax: Decimal;
-  /** Cuota − retenciones: positivo = a pagar, negativo = a devolver (por esta parte). */
+  /** Cuota − deducción − retenciones españolas: positivo = a pagar, negativo = a devolver (por esta parte). */
   estimatedResult: Decimal;
 }
 
@@ -115,15 +147,21 @@ const day = (iso: string) => iso.slice(0, 10);
 
 /** Años con ventas o dividendos, del más reciente al más antiguo. */
 export function taxYears(transactions: readonly Transaction[]): number[] {
-  const years = new Set(transactions.filter((t) => t.type === "sell" || t.type === "dividend").map((t) => Number(t.date.slice(0, 4))));
+  const years = new Set(transactions.filter((t) => t.type === "sell" || t.type === "dividend" || t.type === "interest").map((t) => Number(t.date.slice(0, 4))));
   return [...years].sort((a, b) => b - a);
+}
+
+export interface TaxAssetInfo {
+  type: AssetType;
+  isin?: string;
 }
 
 export function taxReport(
   transactions: readonly Transaction[],
   year: number,
-  typeOf: (assetId: string) => AssetType,
+  assetOf: (assetId: string) => TaxAssetInfo | undefined,
 ): TaxReport {
+  const typeOf = (id: string) => assetOf(id)?.type ?? "other";
   const state = buildPortfolio(transactions);
   const inYear = (t: Transaction) => t.date.slice(0, 4) === String(year);
   const buysByAsset = new Map<string, Transaction[]>();
@@ -164,16 +202,19 @@ export function taxReport(
     })
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
-  const dividends: TaxDividend[] = transactions
-    .filter((t) => t.type === "dividend" && inYear(t))
+  const dividends: TaxIncome[] = transactions
+    .filter((t) => (t.type === "dividend" || t.type === "interest") && inYear(t))
     .map((t) => {
       const gross = new Decimal(t.quantity).times(t.price);
+      const isin = t.assetId ? assetOf(t.assetId)?.isin : undefined;
       return {
         transactionId: t.id,
+        kind: t.type === "interest" ? ("interest" as const) : ("dividend" as const),
         assetId: t.assetId,
         date: day(t.date),
         gross,
         withholding: new Decimal(t.tax),
+        country: (t.withholdingCountry ?? isin?.slice(0, 2) ?? "ES").toUpperCase(),
         fee: new Decimal(t.fee),
         net: transactionTotal(t),
       };
@@ -187,9 +228,13 @@ export function taxReport(
   const deferredLosses = sum(sales, (s) => s.deferredLoss);
   const losses = sum(sales.filter((s) => s.gain.isNegative()), (s) => s.gain).minus(deferredLosses);
   const netGains = gains.plus(losses);
-  const dividendsGross = sum(dividends, (d) => d.gross);
-  const withholding = sum(dividends, (d) => d.withholding);
-  const netDividends = dividendsGross.minus(sum(dividends, (d) => d.fee));
+  const dividendsGross = sum(dividends.filter((d) => d.kind === "dividend"), (d) => d.gross);
+  const interestGross = sum(dividends.filter((d) => d.kind === "interest"), (d) => d.gross);
+  const spanish = dividends.filter((d) => d.country === "ES");
+  const foreign = dividends.filter((d) => d.country !== "ES");
+  const spanishWithholding = sum(spanish, (d) => d.withholding);
+  const foreignWithholding = sum(foreign, (d) => d.withholding);
+  const netDividends = sum(dividends, (d) => d.gross.minus(d.fee));
 
   // Integración y compensación de la base del ahorro (art. 49 LIRPF).
   let savingsBase: Decimal;
@@ -208,6 +253,12 @@ export function taxReport(
   }
 
   const estimatedTax = savingsTax(savingsBase);
+
+  // Doble imposición internacional (art. 80 LIRPF).
+  const averageRate = savingsBase.gt(0) ? estimatedTax.div(savingsBase) : zero;
+  const foreignLimited = sum(foreign, (d) => Decimal.min(d.withholding, d.gross.times(treatyRate(d.country))));
+  const foreignIncome = Decimal.min(Decimal.max(sum(foreign, (d) => d.gross.minus(d.fee)), zero), savingsBase);
+  const doubleTaxDeduction = Decimal.min(foreignLimited, foreignIncome.times(averageRate)).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
   return {
     year,
     sales,
@@ -219,11 +270,16 @@ export function taxReport(
     transmissionValue: sum(sales, (s) => s.proceeds),
     acquisitionValue: sum(sales, (s) => s.cost),
     dividendsGross,
-    withholding,
+    interestGross,
+    spanishWithholding,
+    foreignWithholding,
     netDividends,
+    averageRate,
+    doubleTaxDeduction,
+    unrecoverableWithholding: foreignWithholding.minus(doubleTaxDeduction),
     savingsBase,
     lossCarryForward,
     estimatedTax,
-    estimatedResult: estimatedTax.minus(withholding),
+    estimatedResult: estimatedTax.minus(doubleTaxDeduction).minus(spanishWithholding),
   };
 }

@@ -13,6 +13,7 @@ export const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {
   deposit: "Depósito",
   withdrawal: "Retirada",
   dividend: "Dividendo",
+  interest: "Interés",
   fee: "Comisión",
 };
 

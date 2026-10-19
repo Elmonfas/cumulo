@@ -16,11 +16,24 @@ export interface ImportedTransaction extends Omit<Transaction, "id" | "assetId" 
   line: number;
 }
 
+/** Corrección de un dividendo que no estaba en el mismo archivo: anula uno ya importado. */
+export interface ImportedCorrection {
+  line: number;
+  asset: ImportedAssetRef;
+  /** Bruto y retención del dividendo que se anula (positivos). */
+  gross: string;
+  tax: string;
+}
+
 export interface ParsedImport {
   source: "csv-tr";
   transactions: ImportedTransaction[];
   /** Filas que no se importan y por qué (tipos no soportados, etc.). */
   skipped: { line: number; reason: string }[];
+  /** Filas incoherentes que impiden importar (p. ej. un traspaso sin su pareja). */
+  problems?: { line: number; reason: string }[];
+  /** Correcciones que anulan dividendos importados antes. */
+  corrections?: ImportedCorrection[];
 }
 
 /** El archivo no tiene el formato esperado. `columns` ayuda a diagnosticar. */

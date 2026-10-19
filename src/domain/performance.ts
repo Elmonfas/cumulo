@@ -68,12 +68,12 @@ export function sellDetail(state: PortfolioState, t: Transaction): SellDetail | 
   };
 }
 
-/** Flujos para la TIR: compras salen; ventas, dividendos netos y el valor actual (hoy) entran. */
+/** Flujos para la TIR: compras salen; ventas, dividendos e intereses netos y el valor actual (hoy) entran. */
 export function cashFlows(transactions: readonly Transaction[], currentValue: Decimal, today: string): CashFlow[] {
   const flows: CashFlow[] = [];
   for (const t of transactions) {
     if (t.type === "buy") flows.push({ date: t.date.slice(0, 10), amount: transactionTotal(t).negated() });
-    else if (t.type === "sell" || t.type === "dividend") flows.push({ date: t.date.slice(0, 10), amount: transactionTotal(t) });
+    else if (t.type === "sell" || t.type === "dividend" || t.type === "interest") flows.push({ date: t.date.slice(0, 10), amount: transactionTotal(t) });
   }
   if (currentValue.gt(0)) flows.push({ date: today, amount: currentValue });
   return flows;

@@ -53,7 +53,7 @@ function TaxContent({ data }: { data: PortfolioData }) {
   const years = useMemo(() => taxYears(data.transactions), [data.transactions]);
   const [year, setYear] = useState(years[0]);
   const report = useMemo(
-    () => taxReport(data.transactions, year, (id) => data.assets.get(id)?.type ?? "other"),
+    () => taxReport(data.transactions, year, (id) => data.assets.get(id)),
     [data.transactions, data.assets, year],
   );
   const nameOf = (id?: string) => (id ? (data.assets.get(id)?.name ?? "Activo") : "Sin activo");
@@ -72,9 +72,10 @@ function TaxContent({ data }: { data: PortfolioData }) {
         s.gain.toDecimalPlaces(2),
         s.deferredLoss.isZero() ? undefined : s.deferredLoss.toDecimalPlaces(2),
         undefined,
+        undefined,
       ]),
       ...report.dividends.map((d) => [
-        "Dividendo",
+        d.kind === "interest" ? "Interés" : "Dividendo",
         d.date,
         nameOf(d.assetId),
         d.assetId ? data.assets.get(d.assetId)?.isin : undefined,
@@ -85,6 +86,7 @@ function TaxContent({ data }: { data: PortfolioData }) {
         undefined,
         undefined,
         d.withholding.toDecimalPlaces(2),
+        d.country,
       ]),
     ];
     const csv = toCsv(
@@ -100,6 +102,7 @@ function TaxContent({ data }: { data: PortfolioData }) {
         "Ganancia o pérdida (€)",
         "Pérdida diferida 2 meses (€)",
         "Retención (€)",
+        "País de la retención",
       ],
       rows,
     );
@@ -152,7 +155,7 @@ function TaxContent({ data }: { data: PortfolioData }) {
       {report.dividends.length > 0 && (
         <section aria-labelledby="tax-dividends">
           <h2 id="tax-dividends" className="mb-2 px-1 text-sm font-medium text-text-muted">
-            Dividendos · {report.dividends.length}
+            Dividendos e intereses · {report.dividends.length}
           </h2>
           <Card className="p-1.5 md:p-2">
             <ul>
@@ -162,9 +165,12 @@ function TaxContent({ data }: { data: PortfolioData }) {
                   <li key={d.transactionId} className="flex items-center gap-3 rounded-2xl px-2.5 py-2.5">
                     {asset && <AssetAvatar asset={asset} />}
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{asset?.name ?? "Dividendo"}</span>
+                      <span className="block truncate text-sm font-medium">
+                        {asset?.name ?? (d.kind === "interest" ? "Intereses de la cuenta" : "Dividendo")}
+                      </span>
                       <span className="block truncate text-xs text-text-muted tabular-nums">
-                        {formatDate(d.date)} · retención {formatCurrency(d.withholding)}
+                        {d.kind === "interest" ? "Interés" : "Dividendo"} · {formatDate(d.date)} · retención{" "}
+                        {formatCurrency(d.withholding)} ({d.country === "ES" ? "España" : d.country})
                       </span>
                     </span>
                     <span className="shrink-0 text-right text-sm font-medium tabular-nums">
@@ -184,12 +190,13 @@ function TaxContent({ data }: { data: PortfolioData }) {
         <div className="grid gap-2">
           <p>
             Estimación orientativa con FIFO, la regla de los dos meses para acciones y ETF, la compensación del 25 % entre
-            ganancias y dividendos y la escala del ahorro (19–30 %). No es asesoramiento fiscal.
+            ganancias y rendimientos (dividendos e intereses), la escala del ahorro (19–30 %) y la deducción por doble
+            imposición internacional con el límite del convenio (15 % por defecto). No es asesoramiento fiscal.
           </p>
           <p>
-            No incluye pérdidas pendientes de años anteriores, la deducción por doble imposición internacional ni otras
-            rentas del ahorro (intereses de cuentas, fondos…). Contrasta siempre con los datos fiscales de Trade Republic y
-            de la Agencia Tributaria.
+            El país de la retención se deduce del ISIN; los intereses de la cuenta se toman como retención española. No
+            incluye pérdidas pendientes de años anteriores ni rentas de otras entidades. Contrasta siempre con los datos
+            fiscales de tu bróker y de la Agencia Tributaria.
           </p>
         </div>
       </Card>
@@ -209,14 +216,23 @@ function Summary({ report: r }: { report: TaxReport }) {
         <Tile label="Ganancias" value={<VariationAmount value={r.gains} format={signed} />} />
         <Tile label="Pérdidas" value={<VariationAmount value={r.losses} format={signed} />} />
         <Tile label="Dividendos (íntegro)" value={formatCurrency(r.dividendsGross)} />
-        <Tile label="Retenciones" value={formatCurrency(r.withholding)} />
+        <Tile label="Intereses (íntegro)" value={formatCurrency(r.interestGross)} />
         <Tile label="Base del ahorro" value={formatCurrency(r.savingsBase)} />
         <Tile label="Cuota estimada" value={formatCurrency(r.estimatedTax)} />
+        <Tile label="Retención España" value={formatCurrency(r.spanishWithholding)} />
+        <Tile label="Doble imposición" value={formatCurrency(r.doubleTaxDeduction)} />
       </dl>
       <div className="mt-3 flex flex-wrap items-baseline justify-between gap-2 rounded-2xl border border-accent/30 bg-accent/10 px-4 py-3">
         <span className="text-sm">{toPay ? "Por esta parte, a pagar aprox." : "Por esta parte, a devolver aprox."}</span>
         <span className="text-lg font-medium tabular-nums">{formatCurrency(r.estimatedResult.abs())}</span>
       </div>
+      {r.unrecoverableWithholding.gt(0) && (
+        <p className="mt-3 flex gap-2 text-xs text-pretty text-text-muted">
+          <TriangleAlert className="size-4 shrink-0 text-accent" aria-hidden />
+          {formatCurrency(r.unrecoverableWithholding)} de retención extranjera no se recuperan en la declaración (lo que pase
+          del convenio se puede reclamar al país de origen).
+        </p>
+      )}
       {(!r.deferredLosses.isZero() || r.lossCarryForward.gt(0)) && (
         <ul className="mt-3 grid gap-1.5 text-xs text-text-muted">
           {!r.deferredLosses.isZero() && (

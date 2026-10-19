@@ -60,7 +60,7 @@ describe("importación", () => {
 
   it("importa, crea el activo por ISIN y reimportar no duplica nada", async () => {
     const file = await sampleFile();
-    expect(await commitImport(repos, await prepareImport(repos, file), search)).toEqual({ imported: 3 });
+    expect(await commitImport(repos, await prepareImport(repos, file), search)).toEqual({ imported: 3, cancelled: 0 });
 
     const assets = await repos.assets.list();
     expect(assets).toHaveLength(1);
@@ -72,7 +72,7 @@ describe("importación", () => {
     const again = await prepareImport(repos, await sampleFile());
     expect(again.newCount).toBe(0);
     expect(again.duplicateCount).toBe(3);
-    expect(await commitImport(repos, again, search)).toEqual({ imported: 0 });
+    expect(await commitImport(repos, again, search)).toEqual({ imported: 0, cancelled: 0 });
     expect(await repos.transactions.list()).toHaveLength(3);
   });
 
@@ -140,7 +140,7 @@ describe("importación del CSV real de Trade Republic", () => {
     const preview = await prepareImport(repos, await file());
     expect(preview.newCount).toBe(3);
     expect(preview.totals.buy!.amount.toDecimalPlaces(2).toString()).toBe("160.25");
-    expect(await commitImport(repos, preview, trSearch)).toEqual({ imported: 3 });
+    expect(await commitImport(repos, preview, trSearch)).toEqual({ imported: 3, cancelled: 0 });
 
     const assets = await repos.assets.list();
     expect(assets.map((a) => a.priceSourceId).sort()).toEqual(["AMZN", "VWCE.DE", "bitcoin"]);
@@ -157,5 +157,104 @@ describe("importación del CSV real de Trade Republic", () => {
     const preview = await prepareImport(repos, await file());
     expect(preview.newCount).toBe(2);
     expect(preview.rows.find((r) => r.transaction.asset?.ticker === "BTC")).toMatchObject({ duplicate: true, duplicateOf: "manual" });
+  });
+});
+
+describe("importación de todos los tipos documentados de Trade Republic", () => {
+  let db: CumuloDB;
+  let repos: Repositories;
+  // Buscador falso: cada ISIN cotiza; el bono y el fondo privado no tienen fuente (quedan manuales).
+  const anySearch: SearchFn = vi.fn(async (query: string) => ({
+    securities: /^(DE0001141794|LU1234567890)$/.test(query)
+      ? []
+      : /^[A-Z]{2}[A-Z0-9]{9}\d$/.test(query)
+        ? [{ name: query, ticker: query.slice(2, 6), type: "stock" as const, priceSource: "yahoo" as const, priceSourceId: `${query}.X` }]
+        : [],
+    crypto: query === "ETH" ? [{ name: "Ethereum", ticker: "ETH", type: "crypto" as const, priceSource: "coingecko" as const, priceSourceId: "ethereum" }] : [],
+  }));
+
+  beforeEach(() => {
+    db = createDatabase(`imp-all-${crypto.randomUUID()}`);
+    repos = createDexieRepositories(db);
+  });
+  afterEach(async () => {
+    await db.delete();
+  });
+
+  async function parse(text?: string) {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const { parseTradeRepublicCsv } = await import("@/importers/trade-republic");
+    const full = readFileSync(join(process.cwd(), "src/importers/trade-republic/fixtures/sintetico-todos-los-tipos.csv"), "utf8");
+    return parseTradeRepublicCsv(text ?? full);
+  }
+  async function fullText() {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    return readFileSync(join(process.cwd(), "src/importers/trade-republic/fixtures/sintetico-todos-los-tipos.csv"), "utf8");
+  }
+  async function holdings() {
+    const { buildPortfolio } = await import("@/domain/portfolio");
+    const assets = new Map((await repos.assets.list()).map((a) => [a.id, a]));
+    const state = buildPortfolio(await repos.transactions.list());
+    return Object.fromEntries([...state.positions.values()].map((p) => [assets.get(p.assetId)!.isin ?? assets.get(p.assetId)!.ticker, p.quantity.toString()]));
+  }
+
+  it("las participaciones finales por activo cuadran y los totales salen por tipo", async () => {
+    const preview = await prepareImport(repos, await parse());
+    expect(preview.problem).toBeNull();
+    expect(Object.fromEntries(Object.entries(preview.totals).map(([k, v]) => [k, [v!.count, v!.amount.toFixed(2)]]))).toEqual({
+      // 1501 + 100 + 100 + 1,50 + 1201 + 601 + 501 + 1,40 (staking) + 20,79 (bono) + 50 (privado)
+      buy: [10, "4077.69"],
+      // 719 (Apple) + 20 (amortización)
+      sell: [2, "739.00"],
+      // 2,04 + 5,40 + 8,91 + 2,08 netos
+      dividend: [4, "18.43"],
+      // 2,51 (cuenta) + 0,21 (cupón) + 1,40 (staking)
+      interest: [3, "4.12"],
+    });
+    await commitImport(repos, preview, anySearch);
+    expect(await holdings()).toEqual({
+      US0378331005: "6",
+      IE00BK5BQT80: "1.1599",
+      IE00B8GKDB10: "20",
+      ES0144580Y14: "50",
+      ETH: "0.2005",
+      DE0001141794: "0",
+      LU1234567890: "50",
+    });
+  });
+
+  it("reimportar el mismo archivo o uno que se solapa no duplica nada", async () => {
+    const text = await fullText();
+    const lines = text.trimEnd().split("\n");
+    // Segunda exportación: de la línea 10 al final más una compra nueva.
+    const extra =
+      '"2026-05-04T08:00:00.000Z","2026-05-04","DEFAULT","TRADING","BUY","FUND","FTSE All-World USD (Acc)","IE00BK5BQT80","0.5000000000","180.0000000000","-90.00","","","EUR","","","","Savings plan execution IE00BK5BQT80","00000000-0000-4000-8000-999999999999","","","",""';
+    const overlapping = [lines[0], ...lines.slice(9), extra].join("\n");
+
+    await commitImport(repos, await prepareImport(repos, await parse()), anySearch);
+    const count = (await repos.transactions.list()).length;
+    const again = await prepareImport(repos, await parse());
+    expect(again.newCount).toBe(0);
+
+    const overlap = await prepareImport(repos, await parse(overlapping));
+    expect(overlap.newCount).toBe(1);
+    await commitImport(repos, overlap, anySearch);
+    expect((await repos.transactions.list()).length).toBe(count + 1);
+  });
+
+  it("una corrección posterior anula el dividendo ya importado", async () => {
+    const lines = (await fullText()).trimEnd().split("\n");
+    // Primera exportación hasta el dividendo erróneo (línea 18); la segunda trae la corrección y el corregido.
+    await commitImport(repos, await prepareImport(repos, await parse(lines.slice(0, 18).join("\n"))), anySearch);
+    const wrong = (await repos.transactions.list()).find((t) => t.type === "dividend" && t.price === "2.5");
+    expect(wrong).toBeDefined();
+
+    const second = await prepareImport(repos, await parse([lines[0], lines[18], lines[19]].join("\n")));
+    expect(second.cancels.map((t) => t.id)).toEqual([wrong!.id]);
+    expect(await commitImport(repos, second, anySearch)).toEqual({ imported: 1, cancelled: 1 });
+    const dividends = (await repos.transactions.list()).filter((t) => t.type === "dividend").map((t) => t.price);
+    expect(dividends.sort()).toEqual(["11", "2.4", "2.45", "5.4"]);
   });
 });

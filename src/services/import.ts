@@ -29,6 +29,8 @@ export interface ImportPreview {
   totals: Partial<Record<TransactionType, { count: number; amount: Decimal }>>;
   /** Problema de coherencia al sumar las filas nuevas al historial (venta sin compra…). */
   problem: string | null;
+  /** Dividendos ya importados que una corrección del archivo anula al confirmar. */
+  cancels: Transaction[];
 }
 
 const assetKey = (ref: ImportedAssetRef) =>
@@ -46,7 +48,30 @@ export async function prepareImport(repositories: Repositories, input: ParsedImp
     transactions: input.transactions.filter((t) => !CASH_TRANSACTION_TYPES.includes(t.type)),
     skipped: [...input.skipped, ...cashRows.map((t) => ({ line: t.line, reason: "Movimiento de efectivo" }))],
   };
-  const [existing, assets] = await Promise.all([repositories.transactions.list(), repositories.assets.list()]);
+  const [stored, assets] = await Promise.all([repositories.transactions.list(), repositories.assets.list()]);
+
+  // Correcciones de dividendos importados antes: anulan el dividendo igual
+  // (mismo valor, bruto y retención). Sin original no hay nada que corregir.
+  const cancels: Transaction[] = [];
+  const assetRef = new Map(
+    assets.map((a) => [a.id, a.isin ? `isin:${a.isin.toUpperCase()}` : a.type === "crypto" && a.ticker ? `crypto:${a.ticker.toUpperCase()}` : null]),
+  );
+  for (const correction of input.corrections ?? []) {
+    const ref = assetKey(correction.asset);
+    const original = stored.find(
+      (t) =>
+        t.type === "dividend" &&
+        !cancels.includes(t) &&
+        t.assetId !== undefined &&
+        assetRef.get(t.assetId) === ref &&
+        new Decimal(t.quantity).times(t.price).eq(correction.gross) &&
+        new Decimal(t.tax).eq(correction.tax),
+    );
+    if (original) cancels.push(original);
+    else parsed.skipped = [...parsed.skipped, { line: correction.line, reason: "Corrección de un dividendo que no está importado" }];
+  }
+  parsed.skipped = [...parsed.skipped].sort((a, b) => a.line - b.line);
+  const existing = stored.filter((t) => !cancels.includes(t));
   const existingHashes = await repositories.transactions.existingImportHashes(parsed.transactions.map((t) => t.importHash));
 
   // Operaciones registradas a mano que coinciden con una fila del archivo (mismo
@@ -105,7 +130,10 @@ export async function prepareImport(repositories: Repositories, input: ParsedImp
   ];
   const error = checkTransactions(simulated);
   let problem: string | null = null;
-  if (error) {
+  const fileProblem = parsed.problems?.[0];
+  if (fileProblem) {
+    problem = `${fileProblem.reason} (línea ${fileProblem.line})`;
+  } else if (error) {
     const line = "line" in error.transaction ? ` (línea ${(error.transaction as unknown as ImportedTransaction).line})` : "";
     problem = `${error.message}${line}`;
   }
@@ -117,6 +145,7 @@ export async function prepareImport(repositories: Repositories, input: ParsedImp
     duplicateCount: rows.length - fresh.length,
     totals,
     problem,
+    cancels,
   };
 }
 
@@ -169,7 +198,7 @@ export async function commitImport(
   repositories: Repositories,
   preview: ImportPreview,
   search: SearchFn = searchViaApi,
-): Promise<{ imported: number }> {
+): Promise<{ imported: number; cancelled: number }> {
   // Se vuelve a comprobar por si algo cambió entre la vista previa y la confirmación.
   const current = await prepareImport(repositories, preview.parsed);
   if (current.problem) throw new Error(current.problem);
@@ -182,6 +211,7 @@ export async function commitImport(
     if (!assetIds.has(key)) assetIds.set(key, (await resolveImportedAsset(repositories, t.asset, search)).id);
   }
 
+  for (const t of current.cancels) await repositories.transactions.remove(t.id);
   await repositories.transactions.bulkAdd(
     fresh.map(({ asset, line: _line, ...t }) => ({
       ...t,
@@ -189,5 +219,5 @@ export async function commitImport(
       origin: current.parsed.source,
     })),
   );
-  return { imported: fresh.length };
+  return { imported: fresh.length, cancelled: current.cancels.length };
 }

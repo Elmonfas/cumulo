@@ -9,6 +9,7 @@ import {
   Download,
   FileUp,
   Pencil,
+  Percent,
   Plus,
   Receipt,
   Search,
@@ -50,15 +51,17 @@ const CASH_ICONS: Partial<Record<TransactionType, LucideIcon>> = {
   deposit: ArrowDownToLine,
   withdrawal: ArrowUpFromLine,
   dividend: BadgeEuro,
+  interest: Percent,
   fee: Receipt,
 };
 
-type Filter = "all" | "buy" | "sell" | "dividend";
+type Filter = "all" | "buy" | "sell" | "dividend" | "interest";
 const FILTERS: { key: Filter; label: string }[] = [
   { key: "all", label: "Todas" },
   { key: "buy", label: "Compras" },
   { key: "sell", label: "Ventas" },
   { key: "dividend", label: "Dividendos" },
+  { key: "interest", label: "Intereses" },
 ];
 
 /** Para buscar sin tildes ni mayúsculas: "Telefónica" encuentra "telefonica". */
@@ -87,7 +90,7 @@ export function TransactionsScreen() {
   const openTransaction = (t: Transaction) =>
     setSheet({
       open: true,
-      mode: isAssetTransaction(t.type) || t.type === "dividend" ? "detail" : "edit",
+      mode: isAssetTransaction(t.type) || t.type === "dividend" || t.type === "interest" ? "detail" : "edit",
       transaction: t,
       key: nextSheetKey(),
     });
@@ -117,8 +120,8 @@ export function TransactionsScreen() {
     } catch {
       totals = null;
     }
-    const hasDividends = sorted.some((t) => t.type === "dividend");
-    return { groups: [...groups], totals, count: sorted.length, visibleCount: visible.length, legacyCash, sorted, hasDividends };
+    const present = new Set(sorted.map((t) => t.type));
+    return { groups: [...groups], totals, count: sorted.length, visibleCount: visible.length, legacyCash, sorted, present };
   }, [data, query, filter]);
 
   function exportCsv() {
@@ -233,7 +236,7 @@ export function TransactionsScreen() {
               </Button>
             </div>
             <div role="radiogroup" aria-label="Tipo de operación" className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none]">
-              {FILTERS.filter((f) => f.key !== "dividend" || view.hasDividends).map((f) => (
+              {FILTERS.filter((f) => f.key === "all" || f.key === "buy" || f.key === "sell" || view.present.has(f.key)).map((f) => (
                 <button
                   key={f.key}
                   type="button"
@@ -380,7 +383,7 @@ function TransactionRow({ transaction: t, asset, onSelect }: { transaction: Tran
         </span>
       </span>
       <span className="shrink-0 text-sm font-medium tabular-nums">
-        {t.type === "sell" || t.type === "dividend" ? `+${formatCurrency(total)}` : formatCurrency(total)}
+        {t.type === "sell" || t.type === "dividend" || t.type === "interest" ? `+${formatCurrency(total)}` : formatCurrency(total)}
       </span>
     </button>
   );

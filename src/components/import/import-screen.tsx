@@ -24,7 +24,7 @@ type Step =
   | { name: "importing"; preview: ImportPreview; fileName: string }
   | { name: "done"; imported: number };
 
-const TYPE_ORDER: TransactionType[] = ["buy", "sell", "dividend", "fee"];
+const TYPE_ORDER: TransactionType[] = ["buy", "sell", "dividend", "interest", "fee"];
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 export function ImportScreen() {
@@ -191,8 +191,9 @@ function PreviewStep({
   const types = TYPE_ORDER.filter((t) => preview.totals[t]);
   const importedBefore = preview.rows.filter((r) => r.duplicateOf === "import").length;
   const manualDuplicates = preview.rows.filter((r) => r.duplicateOf === "manual").length;
+  // Filas omitidas agrupadas por motivo, con sus números de línea.
   const skippedReasons = [
-    ...preview.parsed.skipped.reduce((counts, s) => counts.set(s.reason, (counts.get(s.reason) ?? 0) + 1), new Map<string, number>()),
+    ...preview.parsed.skipped.reduce((groups, s) => groups.set(s.reason, [...(groups.get(s.reason) ?? []), s.line]), new Map<string, number[]>()),
   ];
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:gap-5">
@@ -201,17 +202,21 @@ function PreviewStep({
         <p className="mt-1 text-2xl font-semibold tabular-nums">
           {preview.newCount} {preview.newCount === 1 ? "operación nueva" : "operaciones nuevas"}
         </p>
-        {(importedBefore > 0 || manualDuplicates > 0 || skippedReasons.length > 0) && (
+        {(importedBefore > 0 || manualDuplicates > 0 || skippedReasons.length > 0 || preview.cancels.length > 0) && (
           <ul className="mt-3 grid gap-1 text-sm text-text-muted">
             {importedBefore > 0 && <li>{plural(importedBefore, "ya estaba importada", "ya estaban importadas")} y se omite{importedBefore === 1 ? "" : "n"}.</li>}
             {manualDuplicates > 0 && (
               <li>{plural(manualDuplicates, "coincide con una operación que registraste a mano", "coinciden con operaciones que registraste a mano")} y se omite{manualDuplicates === 1 ? "" : "n"}.</li>
             )}
-            {skippedReasons.map(([reason, count]) => (
-              <li key={reason}>
-                {reason}: {plural(count, "fila", "filas")} sin importar.
+            {preview.parsed.skipped.length > 0 && (
+              <li>{plural(preview.parsed.skipped.length, "fila no se importa", "filas no se importan")}: el motivo de cada una está abajo.</li>
+            )}
+            {preview.cancels.length > 0 && (
+              <li className="text-text">
+                {plural(preview.cancels.length, "dividendo ya importado se anula", "dividendos ya importados se anulan")} por una corrección del
+                archivo.
               </li>
-            ))}
+            )}
           </ul>
         )}
 
@@ -228,6 +233,25 @@ function PreviewStep({
           </dl>
         )}
       </Card>
+
+      {preview.parsed.skipped.length > 0 && (
+        <details className="group rounded-card border border-border bg-surface">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-card px-5 py-4 text-sm font-medium outline-none focus-visible:ring-3 focus-visible:ring-accent/40 [&::-webkit-details-marker]:hidden">
+            Filas que no se importan · {preview.parsed.skipped.length}
+            <span className="text-xs font-normal text-text-muted group-open:hidden">Ver por qué</span>
+          </summary>
+          <ul className="max-h-80 overflow-y-auto px-5 pb-4 text-sm">
+            {skippedReasons.map(([reason, lines]) => (
+              <li key={reason} className="border-t border-border py-2.5 first:border-t-0">
+                <span className="block text-pretty">{reason}</span>
+                <span className="mt-0.5 block text-xs text-text-muted tabular-nums">
+                  {lines.length === 1 ? "Línea" : "Líneas"} {lines.join(", ")}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
 
       {preview.problem && (
         <Card role="alert" className="flex gap-3">

@@ -131,7 +131,7 @@ export function PositionDetail({ data, assetId }: { data: PortfolioData; assetId
                   <span
                     className={cn(
                       "size-2.5 shrink-0 rounded-full",
-                      t.type === "sell" ? "bg-series-3" : t.type === "dividend" ? "bg-series-4" : "bg-accent",
+                      t.type === "sell" ? "bg-series-3" : t.type === "dividend" || t.type === "interest" ? "bg-series-4" : "bg-accent",
                     )}
                     aria-hidden
                   />
@@ -140,7 +140,7 @@ export function PositionDetail({ data, assetId }: { data: PortfolioData; assetId
                       {TRANSACTION_TYPE_LABELS[t.type]} · {formatDate(t.date)}
                     </span>
                     <span className="block truncate text-xs text-text-muted tabular-nums">
-                      {t.type === "dividend"
+                      {t.type === "dividend" || t.type === "interest"
                         ? `${formatCurrency(transactionTotal(t))} netos · retención ${formatCurrency(t.tax)}`
                         : `${formatQuantity(t.quantity)} × ${formatCurrency(t.price)}`}
                     </span>

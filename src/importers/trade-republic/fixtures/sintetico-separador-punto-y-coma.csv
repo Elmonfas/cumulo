@@ -1,0 +1,3 @@
+datetime;date;account_type;category;type;asset_class;name;symbol;shares;price;amount;fee;tax;currency;original_amount;original_currency;fx_rate;description;transaction_id;value_date;counterparty_name;counterparty_iban;payment_reference
+2025-01-07T10:00:00.000Z;2025-01-07;DEFAULT;TRADING;BUY;STOCK;Apple;US0378331005;10.0000000000;150.0000000000;-1500.00;-1.00;;EUR;;;;BUY US0378331005;00000000-0000-4000-8000-000000000003;2025-01-07;;;
+2025-02-03T08:00:00.000Z;2025-02-03;DEFAULT;TRADING;BUY;FUND;FTSE All-World USD (Acc);IE00BK5BQT80;0.5812000000;172.0600000000;-100.00;;;EUR;;;;Savings plan execution IE00BK5BQT80;00000000-0000-4000-8000-000000000004;2025-02-03;;;
