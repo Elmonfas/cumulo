@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable } from "dexie";
+import type { Goal } from "@/domain/goals";
 import type { Asset, PriceAlert, PriceCacheEntry, Settings, Transaction, WatchItem } from "@/domain/models";
 
 /** Fila única de ajustes; la clave fija permite un get/put sencillo. */
@@ -13,6 +14,7 @@ export type CumuloDB = Dexie & {
   settings: EntityTable<SettingsRow, "id">;
   alerts: EntityTable<PriceAlert, "id">;
   watchlist: EntityTable<WatchItem, "assetId">;
+  goals: EntityTable<Goal, "id">;
 };
 
 export function createDatabase(name = "cumulo"): CumuloDB {
@@ -27,5 +29,7 @@ export function createDatabase(name = "cumulo"): CumuloDB {
   db.version(2).stores({ alerts: "id, assetId" });
   // v3: lista de seguimiento.
   db.version(3).stores({ watchlist: "assetId, addedAt" });
+  // v4: objetivos de ahorro.
+  db.version(4).stores({ goals: "id, targetDate" });
   return db;
 }

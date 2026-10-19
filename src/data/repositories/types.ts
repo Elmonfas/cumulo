@@ -1,4 +1,5 @@
 import type { BackupData } from "@/domain/backup";
+import type { Goal } from "@/domain/goals";
 import type { Asset, PriceAlert, PriceCacheEntry, PriceSource, Settings, Transaction, WatchItem } from "@/domain/models";
 
 /**
@@ -54,6 +55,14 @@ export interface WatchlistRepository {
   remove(assetId: string): Promise<void>;
 }
 
+export interface GoalRepository {
+  /** Ordenados por fecha objetivo. */
+  list(): Promise<Goal[]>;
+  add(goal: Omit<Goal, "id" | "createdAt">): Promise<Goal>;
+  update(id: string, changes: Partial<Omit<Goal, "id" | "createdAt">>): Promise<void>;
+  remove(id: string): Promise<void>;
+}
+
 export interface BackupRepository {
   exportAll(): Promise<BackupData>;
   /** Sustituye todos los datos por los del backup, de forma atómica. */
@@ -67,5 +76,6 @@ export interface Repositories {
   settings: SettingsRepository;
   alerts: AlertRepository;
   watchlist: WatchlistRepository;
+  goals: GoalRepository;
   backup: BackupRepository;
 }

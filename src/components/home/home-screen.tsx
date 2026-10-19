@@ -15,6 +15,7 @@ import { QuoteFreshness, quotesOf } from "@/components/portfolio/quote-freshness
 import { RefreshPricesButton } from "@/components/portfolio/refresh-prices-button";
 import { TriggeredAlerts } from "./triggered-alerts";
 import { CalendarWidget } from "@/components/calendar/calendar-widget";
+import { GoalWidget } from "@/components/goals/goal-widget";
 import { AssetSwitcher } from "./asset-switcher";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -249,6 +250,8 @@ function HomeContent({
           <CalendarWidget transactions={data.transactions} />
         </div>
       )}
+
+      <GoalWidget value={v.totalValue} transactions={data.transactions} />
 
       {byAsset.length > 0 && <BenchmarkCard data={data} />}
 

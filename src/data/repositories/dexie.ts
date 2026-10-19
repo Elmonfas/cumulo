@@ -122,9 +122,24 @@ export function createDexieRepositories(db: CumuloDB): Repositories {
       },
     },
 
+    goals: {
+      list: () => db.goals.orderBy("targetDate").toArray(),
+      async add(goal) {
+        const row = { ...goal, id: newId(), createdAt: new Date().toISOString() };
+        await db.goals.add(row);
+        return row;
+      },
+      async update(id, changes) {
+        await db.goals.update(id, changes);
+      },
+      async remove(id) {
+        await db.goals.delete(id);
+      },
+    },
+
     backup: {
       async exportAll() {
-        return db.transaction("r", [db.assets, db.transactions, db.priceCache, db.settings, db.alerts, db.watchlist], async () => ({
+        return db.transaction("r", [db.assets, db.transactions, db.priceCache, db.settings, db.alerts, db.watchlist, db.goals], async () => ({
           format: BACKUP_FORMAT,
           version: BACKUP_VERSION,
           exportedAt: new Date().toISOString(),
@@ -134,10 +149,11 @@ export function createDexieRepositories(db: CumuloDB): Repositories {
           settings: await settings.get(),
           alerts: await db.alerts.toArray(),
           watchlist: await db.watchlist.toArray(),
+          goals: await db.goals.orderBy("targetDate").toArray(),
         }));
       },
       async importAll(data) {
-        await db.transaction("rw", [db.assets, db.transactions, db.priceCache, db.settings, db.alerts, db.watchlist], async () => {
+        await db.transaction("rw", [db.assets, db.transactions, db.priceCache, db.settings, db.alerts, db.watchlist, db.goals], async () => {
           await Promise.all([
             db.assets.clear(),
             db.transactions.clear(),
@@ -145,6 +161,7 @@ export function createDexieRepositories(db: CumuloDB): Repositories {
             db.settings.clear(),
             db.alerts.clear(),
             db.watchlist.clear(),
+            db.goals.clear(),
           ]);
           await db.assets.bulkAdd(data.assets);
           await db.transactions.bulkAdd(data.transactions);
@@ -152,6 +169,7 @@ export function createDexieRepositories(db: CumuloDB): Repositories {
           await db.settings.put({ ...DEFAULT_SETTINGS, ...data.settings, id: "app" });
           await db.alerts.bulkAdd(data.alerts ?? []);
           await db.watchlist.bulkAdd(data.watchlist ?? []);
+          await db.goals.bulkAdd(data.goals ?? []);
         });
       },
     },

@@ -10,5 +10,5 @@ Ideas fuera del alcance de la fase en curso. Nada de esto se implementa hasta qu
 - Volver a armar una alerta cumplida con un toque.
 - Renta: arrastrar las pérdidas pendientes de años anteriores y la deducción por doble imposición internacional.
 - Importador genérico de CSV (otros brókers) con plantilla descargable.
-- Objetivos de ahorro con proyección (enlazando la calculadora de interés compuesto con la cartera real).
+- Objetivos: tarjeta para compartir el progreso y objetivos de un activo concreto (no solo de toda la cartera).
 - Importador TR: mapear dividendos, planes de ahorro e intereses en cuanto haya filas reales de ejemplo.

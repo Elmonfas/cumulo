@@ -49,6 +49,7 @@ export function withChangeEvents(repositories: Repositories): Repositories {
     settings: wrap(repositories.settings),
     alerts: wrap(repositories.alerts),
     watchlist: wrap(repositories.watchlist),
+    goals: wrap(repositories.goals),
     backup: wrap(repositories.backup),
   };
 }

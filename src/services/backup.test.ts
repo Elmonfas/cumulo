@@ -67,4 +67,15 @@ describe("backup", () => {
     expect(data.transactions).toEqual([]);
     expect(data.settings).toEqual({ profileName: "", defaultPeriod: "1M" });
   });
+
+  it("los objetivos viajan en el backup y se validan", async () => {
+    await from.goals.add({ name: "Entrada del piso", target: "30000", targetDate: "2030-06-30", expectedReturn: "0.06" });
+    const { json } = await exportBackup(from);
+    await restoreBackup(to, readBackup(json).data);
+    expect(await to.goals.list()).toMatchObject([{ name: "Entrada del piso", target: "30000", targetDate: "2030-06-30" }]);
+
+    const broken = JSON.parse(json);
+    broken.goals[0].target = "treinta mil";
+    expect(() => readBackup(JSON.stringify(broken))).toThrow(/objetivo 1/);
+  });
 });

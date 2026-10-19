@@ -1,4 +1,4 @@
-import { CalendarDays, CalendarSync, ChevronRight, Landmark, Sparkles, TrendingUp } from "lucide-react";
+import { CalendarDays, CalendarSync, ChevronRight, Goal, Landmark, Sparkles, TrendingUp } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
@@ -6,6 +6,12 @@ import { PageHeader } from "@/components/layout/page-header";
 export const metadata: Metadata = { title: "Herramientas" };
 
 const TOOLS = [
+  {
+    href: "/herramientas/objetivos",
+    title: "Objetivos",
+    description: "Cuánto quieres tener y para cuándo: progreso, cuota mensual y si llegas.",
+    icon: Goal,
+  },
   {
     href: "/herramientas/tu-ano",
     title: "Tu año en cúmulo",

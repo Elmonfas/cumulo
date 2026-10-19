@@ -47,5 +47,6 @@ export async function wipeAllData(repositories: Repositories) {
     settings: DEFAULT_SETTINGS,
     alerts: [],
     watchlist: [],
+    goals: [],
   });
 }
