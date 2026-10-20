@@ -180,8 +180,8 @@ export function evaluateRemoteAlerts(alerts: RemoteAlert[], prices: ReadonlyMap<
 }
 
 export const REMINDER_MESSAGE: PushMessage = {
-  title: "Toca poner cúmulo al día",
-  body: "Exporta el CSV de tu bróker y súbelo para que tu cartera siga exacta.",
+  title: "Toca importar el CSV de tu bróker",
+  body: "",
   url: "/operaciones/importar",
   tag: "import-reminder",
 };

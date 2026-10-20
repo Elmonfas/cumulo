@@ -21,8 +21,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Espera unos segundos antes de probar otra vez." }, { status: 429, headers: noStore });
   }
   const result = await sendPush(device.subscription, {
-    title: "cúmulo",
-    body: "Las notificaciones funcionan. Te avisaremos aunque la app esté cerrada.",
+    title: "Las notificaciones funcionan",
+    body: "",
     url: "/ajustes",
     tag: "test",
   });

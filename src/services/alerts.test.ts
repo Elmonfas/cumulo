@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDatabase, type CumuloDB } from "@/data/db";
 import type { Repositories } from "@/data/repositories";
 import { createDexieRepositories } from "@/data/repositories/dexie";
-import { checkAlerts, createAlert } from "./alerts";
+import { checkAlerts, createAlert, shortAssetName } from "./alerts";
 import { exportBackup, readBackup, restoreBackup } from "./backup";
 
 describe("alertas", () => {
@@ -29,8 +29,8 @@ describe("alertas", () => {
     const first = await checkAlerts(repos, notify, new Date("2026-10-15T16:00:00Z"));
     expect(first).toHaveLength(1);
     expect(notify).toHaveBeenCalledWith(
-      "VWCE ha subido",
-      "Cotiza a 170,94 € (tu alerta: sube de 170,00 €).",
+      "VWCE ha subido de 170,00\u00a0€",
+      "",
       expect.stringMatching(/^alert-/),
     );
     const stored = await repos.alerts.listByAsset(assetId);
@@ -38,6 +38,15 @@ describe("alertas", () => {
 
     expect(await checkAlerts(repos, notify)).toHaveLength(0);
     expect(notify).toHaveBeenCalledTimes(1);
+  });
+
+  it("acorta los nombres largos para que la notificación quepa", () => {
+    expect(shortAssetName("Bitcoin")).toBe("Bitcoin");
+    expect(shortAssetName("Vanguard FTSE All-World UCITS ETF USD Accumulation")).toBe("Vanguard FTSE All-World");
+    expect(shortAssetName("iShares Core MSCI World UCITS ETF USD (Acc)")).toBe("iShares Core MSCI World");
+    expect(shortAssetName("Apple Inc.")).toBe("Apple Inc.");
+    expect(shortAssetName("Xtrackers MSCI Emerging Markets UCITS ETF 1C")).toBe("Xtrackers MSCI Emerging…");
+    expect(shortAssetName("Amundi Index Solutions - Amundi Prime Global")).toBe("Amundi Index Solutions…");
   });
 
   it("rechaza precios no positivos", async () => {

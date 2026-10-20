@@ -46,7 +46,7 @@ self.addEventListener("push", (event) => {
   }
   event.waitUntil(
     self.registration.showNotification(payload.title ?? "cúmulo", {
-      body: payload.body,
+      body: payload.body || undefined,
       tag: payload.tag,
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",

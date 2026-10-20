@@ -46,8 +46,8 @@ export async function runPushCron({ store, quote, send, now }: CronDeps): Promis
     if (due.length > 0) {
       next.alerts = remaining;
       next.fired = [...device.fired, ...due.map(({ alert, price }) => ({ id: alert.id, price: price.toString(), at: now.toISOString() }))];
-      for (const { alert, price } of due) {
-        const { title, body } = alertMessage(alert, alert.name, price);
+      for (const { alert } of due) {
+        const { title, body } = alertMessage(alert, alert.name);
         outbox.push({ message: { title, body, url: "/cartera", tag: `alert-${alert.id}` }, kind: "alert" });
       }
     }

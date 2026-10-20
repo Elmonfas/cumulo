@@ -22,10 +22,34 @@ export interface TriggeredAlert {
 
 export type Notify = (title: string, body: string, tag: string) => void | Promise<void>;
 
-export function alertMessage(alert: Pick<PriceAlert, "direction" | "price">, assetName: string, price: Decimal) {
+const NAME_MAX = 24;
+/** Coletillas que no ayudan a reconocer el activo en una notificación. */
+const NOISE = /^(ucits|etf|etc|acc|accumulating|accumulation|dist|distributing|inc|usd|eur|gbp|hedged|plc|sa|s\.a\.|ag|nv|se|corp|corporation|ltd|class|[a-z])$/i;
+
+/**
+ * Nombre corto para la notificación: sin paréntesis ni coletillas de fondo
+ * («UCITS ETF USD Acc») y, si aún es largo, cortado por palabras con «…».
+ */
+export function shortAssetName(name: string, max = NAME_MAX): string {
+  const words = name.replace(/\([^)]*\)/g, " ").split(/\s+/).filter(Boolean);
+  const ucits = words.findIndex((w) => /^ucits$/i.test(w));
+  const kept = ucits > 0 ? words.slice(0, ucits) : words;
+  while (kept.length > 1 && (NOISE.test(kept.at(-1)!) || /^[-–·,]$/.test(kept.at(-1)!))) kept.pop();
+  const clean = kept.join(" ") || name.trim();
+  if (clean.length <= max) return clean;
+  let cut = "";
+  for (const word of clean.split(" ")) {
+    if ((cut ? cut.length + 1 : 0) + word.length > max - 1) break;
+    cut = cut ? `${cut} ${word}` : word;
+  }
+  return `${(cut || clean.slice(0, max - 1)).replace(/[\s,.\-–·]+$/, "")}…`;
+}
+
+/** Una sola línea, como cualquier app: «Bitcoin ha subido de 80.000,00 €». */
+export function alertMessage(alert: Pick<PriceAlert, "direction" | "price">, assetName: string) {
   return {
-    title: `${assetName} ${alert.direction === "above" ? "ha subido" : "ha bajado"}`,
-    body: `Cotiza a ${formatCurrency(price)} (tu alerta: ${alert.direction === "above" ? "sube de" : "baja de"} ${formatCurrency(alert.price)}).`,
+    title: `${shortAssetName(assetName)} ${alert.direction === "above" ? "ha subido de" : "ha bajado de"} ${formatCurrency(alert.price, { reveal: true })}`,
+    body: "",
   };
 }
 
@@ -46,7 +70,7 @@ export async function checkAlerts(repositories: Repositories, notify: Notify, no
   for (const { alert, price } of dueAlerts(alerts, prices)) {
     await repositories.alerts.markTriggered(alert.id, price.toString(), now.toISOString());
     const asset = byId.get(alert.assetId);
-    const { title, body } = alertMessage(alert, asset?.name ?? "Un activo", price);
+    const { title, body } = alertMessage(alert, asset?.name ?? "Un activo");
     await notify(title, body, `alert-${alert.id}`);
     triggered.push({ alert, asset, price });
   }
