@@ -45,7 +45,11 @@ export function shortAssetName(name: string, max = NAME_MAX): string {
   return `${(cut || clean.slice(0, max - 1)).replace(/[\s,.\-–·]+$/, "")}…`;
 }
 
-/** Una sola línea, como cualquier app: «Bitcoin ha subido de 80.000,00 €». */
+/**
+ * Una sola línea: «Bitcoin ha subido de 80.000,00 €». iOS añade debajo
+ * «from cúmulo» en toda web instalada y no se puede quitar; con el nombre de
+ * la app también en el título quedaría repetido.
+ */
 export function alertMessage(alert: Pick<PriceAlert, "direction" | "price">, assetName: string) {
   return {
     title: `${shortAssetName(assetName)} ${alert.direction === "above" ? "ha subido de" : "ha bajado de"} ${formatCurrency(alert.price, { reveal: true })}`,
