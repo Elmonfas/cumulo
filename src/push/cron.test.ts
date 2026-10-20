@@ -46,8 +46,7 @@ describe("runPushCron", () => {
     await run("2026-10-20T10:00:00Z");
     await run("2026-10-20T10:15:00Z");
     expect(sent).toHaveLength(1);
-    expect(sent[0].title).toBe("Bitcoin ha subido de 80.000,00\u00a0€");
-    expect(sent[0].body).toBe("");
+    expect(sent[0]).toMatchObject({ title: "cúmulo", body: "Bitcoin ha subido de 80.000,00\u00a0€" });
     const saved = await store.get("d1");
     expect(saved?.alerts.map((a) => a.id)).toEqual(["a2"]);
     expect(saved?.fired).toEqual([{ id: "a1", price: "81000", at: "2026-10-20T10:00:00.000Z" }]);

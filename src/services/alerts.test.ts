@@ -29,8 +29,8 @@ describe("alertas", () => {
     const first = await checkAlerts(repos, notify, new Date("2026-10-15T16:00:00Z"));
     expect(first).toHaveLength(1);
     expect(notify).toHaveBeenCalledWith(
+      "cúmulo",
       "VWCE ha subido de 170,00\u00a0€",
-      "",
       expect.stringMatching(/^alert-/),
     );
     const stored = await repos.alerts.listByAsset(assetId);
