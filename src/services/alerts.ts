@@ -20,8 +20,6 @@ export interface TriggeredAlert {
   price: Decimal;
 }
 
-export const APP_NAME = "cúmulo";
-
 export type Notify = (title: string, body: string, tag: string) => void | Promise<void>;
 
 const NAME_MAX = 24;
@@ -47,14 +45,11 @@ export function shortAssetName(name: string, max = NAME_MAX): string {
   return `${(cut || clean.slice(0, max - 1)).replace(/[\s,.\-–·]+$/, "")}…`;
 }
 
-/**
- * Como cualquier app: «cúmulo» arriba y una línea con el aviso. Con el cuerpo
- * vacío, iOS lo rellena con «from cúmulo».
- */
+/** Una sola línea, como cualquier app: «Bitcoin ha subido de 80.000,00 €». */
 export function alertMessage(alert: Pick<PriceAlert, "direction" | "price">, assetName: string) {
   return {
-    title: APP_NAME,
-    body: `${shortAssetName(assetName)} ${alert.direction === "above" ? "ha subido de" : "ha bajado de"} ${formatCurrency(alert.price, { reveal: true })}`,
+    title: `${shortAssetName(assetName)} ${alert.direction === "above" ? "ha subido de" : "ha bajado de"} ${formatCurrency(alert.price, { reveal: true })}`,
+    body: "",
   };
 }
 
