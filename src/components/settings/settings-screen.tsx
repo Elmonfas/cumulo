@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { PeriodSelector } from "@/components/charts/period-selector";
 import { PageHeader } from "@/components/layout/page-header";
 import { rememberAvatar } from "@/components/layout/settings-link";
+import { NotificationsCard } from "./notifications-card";
 import { ThemeSelector } from "@/components/theme-selector";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -48,6 +49,7 @@ export function SettingsScreen() {
             )}
           </div>
         </Card>
+        <NotificationsCard />
         <DataCard />
         <Card className="flex gap-4">
           <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
@@ -57,7 +59,7 @@ export function SettingsScreen() {
             <h2 className="font-medium">Tus datos no salen de aquí</h2>
             <p className="mt-1 text-sm text-pretty text-text-muted">
               Operaciones, cantidades y ajustes se guardan solo en este navegador. Para pedir precios únicamente se envían
-              tickers o ISIN. Haz copias de seguridad de vez en cuando.
+              tickers o ISIN; si activas las alertas con la app cerrada, también su activo y precio. Haz copias de seguridad de vez en cuando.
             </p>
           </div>
         </Card>

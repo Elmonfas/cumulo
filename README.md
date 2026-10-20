@@ -18,7 +18,7 @@
 
 ## Por qué cúmulo
 
-- **Tus datos no salen de tu dispositivo.** Operaciones, cantidades y ajustes viven solo en tu navegador (IndexedDB). El servidor únicamente recibe identificadores públicos (ticker, ISIN o id de CoinGecko) para pedir precios. Sin cuentas, sin rastreadores.
+- **Tus datos no salen de tu dispositivo.** Operaciones, cantidades y ajustes viven solo en tu navegador (IndexedDB). El servidor únicamente recibe identificadores públicos (ticker, ISIN o id de CoinGecko) para pedir precios. Sin cuentas, sin rastreadores. Si activas las notificaciones, guarda además la suscripción del dispositivo, el horario del recordatorio y, si lo eliges, el activo y el precio de cada alerta; nunca cantidades.
 - **Cifras exactas.** Todo importe se calcula con `decimal.js`, nunca con coma flotante, y la lógica financiera está cubierta por tests escritos a mano.
 - **Hecha para el inversor español.** Formato es-ES (`1.234,56 €`), FIFO como manda Hacienda e informe orientativo para la declaración de la Renta.
 
@@ -30,7 +30,7 @@
 | **Cartera** | Posiciones abiertas y cerradas, coste medio, no realizado, realizado, TIR, lista de seguimiento y alertas de precio. Cada posición tiene su gráfica de precio con tus compras y ventas marcadas y la línea de tu precio medio. |
 | **Operaciones** | Alta manual de compras, ventas y dividendos (con retención) y un buscador de activos por nombre, ticker o ISIN. Búsqueda, filtros y exportación a CSV. No deja vender más de lo que tienes. |
 | **Herramientas** | Objetivos de ahorro (progreso, aportación mensual necesaria y si llegas al ritmo actual), calendario de operaciones (cada día con compras o ventas, más intenso cuanto más dinero), informe para la Renta (FIFO, regla de los dos meses, compensación ganancias/dividendos, cuota estimada y CSV), «Tu año en cúmulo», interés compuesto y simulador de aportaciones periódicas con precios reales. |
-| **Ajustes** | Tema claro/oscuro/sistema, modo privado (oculta importes), periodo por defecto y copia de seguridad JSON para llevarte tus datos a otro navegador. |
+| **Ajustes** | Notificaciones push (recordatorio mensual para importar y alertas de precio con la app cerrada, también en iPhone), tema claro/oscuro/sistema, modo privado (oculta importes), periodo por defecto y copia de seguridad JSON para llevarte tus datos a otro navegador. |
 
 Además: instalable como app (PWA) con página sin conexión, tarjetas para compartir una posición, una operación, la cartera o tu año (temas oscuro, claro y morado; sin importes si no quieres), y precios que se refrescan cada 30 s con la app abierta.
 
@@ -51,11 +51,19 @@ Además: instalable como app (PWA) con página sin conexión, tarjetas para comp
 
 Todas las peticiones pasan por las rutas `/api/*` de la propia app (con caché en el CDN), así ningún tercero ve qué activos consultas. Detalles y límites en [docs/precios.md](docs/precios.md).
 
+## Notificaciones
+
+Push real (Web Push con VAPID), también en iPhone con iOS 16.4+ si cúmulo está **añadida a la pantalla de inicio** desde Safari. Se activan en Ajustes › Notificaciones.
+
+- **Qué guarda el servidor** (Upstash Redis): la suscripción del dispositivo, el día y la hora del recordatorio y, solo con «Alertas de precio con la app cerrada», el activo, la condición y el precio de cada alerta. «Desactivar en este dispositivo» lo borra todo.
+- **Cuándo se comprueba**: un workflow de GitHub Actions ([push-cron.yml](.github/workflows/push-cron.yml)) llama a `/api/push/cron` cada 15 minutos (GitHub puede retrasarlo unos minutos); Vercel Cron lo hace además una vez al día, de respaldo.
+- **Configuración**: `VAPID_PRIVATE_KEY` y `CRON_SECRET` en Vercel, `KV_REST_API_URL` y `KV_REST_API_TOKEN` (las crea la integración de Upstash) y `CRON_SECRET` también como secreto de GitHub Actions. La clave pública está en [src/push/config.ts](src/push/config.ts). Sin Redis, en local se usa memoria.
+
 ## Seguridad
 
 - Cabeceras estrictas: `Content-Security-Policy` (todo desde el propio dominio), `Permissions-Policy`, `X-Frame-Options: DENY`, `nosniff`, `COOP` y HSTS.
 - El proxy de logos solo reenvía imágenes rasterizadas de tamaño acotado y con `sandbox`.
-- Las rutas de la API validan cada identificador y fecha antes de llamar a una fuente.
+- Las rutas de la API validan cada identificador y fecha antes de llamar a una fuente. Las de push solo aceptan suscripciones de los servicios de Apple, Google, Mozilla y Microsoft, y el programador exige `CRON_SECRET`.
 - Los backups se validan campo a campo antes de restaurarse (fechas reales, decimales, avatar solo como imagen embebida) y el CSV exportado neutraliza fórmulas.
 
 ## Desarrollo

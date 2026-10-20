@@ -1,4 +1,5 @@
 import { SerwistProvider } from "@serwist/turbopack/react";
+import { PushSync } from "@/components/push-sync";
 import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 import type { Metadata, Viewport } from "next";
@@ -39,6 +40,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <SplashScreen />
         <SerwistProvider swUrl="/serwist/sw.js" disable={process.env.NODE_ENV === "development"}>
           <ThemeSync />
+          <PushSync />
           <AppShell>{children}</AppShell>
         </SerwistProvider>
       </body>

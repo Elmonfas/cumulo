@@ -1,0 +1,23 @@
+# Cada 15 minutos despierta el envío de notificaciones (recordatorios y alertas
+# de precio). El plan gratuito de Vercel solo permite crons diarios.
+name: Notificaciones push
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  cron:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Llamar a /api/push/cron
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl --fail-with-body --silent --show-error --max-time 90 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            https://cumulo-nine.vercel.app/api/push/cron

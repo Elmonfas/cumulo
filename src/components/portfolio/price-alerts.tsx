@@ -123,7 +123,7 @@ export function PriceAlerts({ assetId, currentPrice }: { assetId: string; curren
           onValueChange={setPrice}
           error={error}
           placeholder={currentPrice ? new Decimal(currentPrice).toFixed(2).replace(".", ",") : "0,00"}
-          hint="Avisa una vez, con la app abierta: no hay servidor que vigile tus datos."
+          hint="Avisa una vez. Para recibirla con la app cerrada, activa las notificaciones en Ajustes."
         />
         <Button type="submit" variant="secondary">
           Crear alerta
