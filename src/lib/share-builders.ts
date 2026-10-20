@@ -119,15 +119,10 @@ export async function buildPositionCard(data: PortfolioData, assetId: string, { 
     hero: pct ? formatPercent(pct) : "—",
     tone: tone(pct),
     subtitle: `Desde ${formatDate(first)} · ${formatNumber(new Decimal(daysBetween(first, todayIso())), 0)} días${showAmounts ? ` · ${formatQuantity(position.quantity, { reveal: true })} uds` : ""}`,
-    chart: lineChart(
-      closes,
-      trades,
-      valuation?.price ?? null,
-      first,
-      undefined,
-      open ? position.averageCost : null,
-      open ? `Mi precio medio · ${money(position.averageCost)}` : undefined,
-    ),
+    // Solo el precio: sin puntos de cada operación ni línea del precio medio. El
+    // precio medio cambia con cada compra (una línea plana con el de hoy
+    // engañaría) y ya va como cifra clave.
+    chart: lineChart(closes, [], valuation?.price ?? null, first),
     stats,
     footer: footer(),
   };

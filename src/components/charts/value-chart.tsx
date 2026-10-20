@@ -34,13 +34,14 @@ export function ValueChart({ points: all, investedLabel }: { points: HistoryPoin
   const dates = data.map((d) => d.date);
   const intraday = dates.length > 0 && hasTime(dates[0]);
   const xTicks = timeAxisTicks(dates);
-  // En periodos cortos lo invertido puede quedar muy lejos del valor y aplastaría
-  // la curva: entonces no se dibuja (sigue en el tooltip).
+  // Lo invertido solo se dibuja si cae dentro del rango del valor; si no,
+  // aplastaría la curva (sigue en el tooltip).
   const values = data.map((d) => d.value);
   const low = Math.min(...values);
   const high = Math.max(...values);
-  const span = Math.max(high - low, high * 0.01);
-  const investedFits = data.every((d) => d.invested === null || (d.invested >= low - span && d.invested <= high + span));
+  // Igual que el precio medio en la ficha de cada activo: nunca estira la escala.
+  const margin = Math.max(high - low, high * 0.002) * 0.1;
+  const investedFits = data.every((d) => d.invested === null || (d.invested >= low - margin && d.invested <= high + margin));
   if (!investedFits) for (const d of data) d.invested = null;
   const yScale = niceScale(data.flatMap((d) => (d.invested === null ? [d.value] : [d.value, d.invested])));
   const axisLabel = currencyAxisFormatter(yScale.ticks, { hidden: areAmountsHidden() });

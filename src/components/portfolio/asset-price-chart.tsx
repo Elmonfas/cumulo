@@ -108,8 +108,6 @@ export function AssetPriceChart({ asset, transactions, currentPrice, averageCost
           markers={series.markers}
           trades={trades}
           averageCost={averageCost}
-          // En periodos cortos la línea del precio medio no debe aplastar la curva.
-          extendToAverage={period === "1Y" || period === "ALL"}
         />
       )}
       {histories.status === "ready" && histories.failed > 0 && (
@@ -125,15 +123,12 @@ function Chart({
   markers,
   trades,
   averageCost,
-  extendToAverage,
 }: {
   asset: Asset;
   points: { date: string; close: Decimal }[];
   markers: TradeMarker[];
   trades: Transaction[];
   averageCost: Decimal | null;
-  /** Ampliar el eje para que siempre se vea la línea del precio medio. */
-  extendToAverage: boolean;
 }) {
   const gradientId = `fill-asset-price-${useId().replace(/[^\w-]/g, "")}`;
   const averages = averageCostSeries(trades, points.map((p) => p.date));
@@ -141,11 +136,11 @@ function Chart({
   const low = Math.min(...closesNum);
   const high = Math.max(...closesNum);
   const span = high - low;
-  // En periodos cortos la línea del precio medio no debe aplastar la curva: si
-  // se sale mucho de la escala del precio, no se dibuja (la leyenda lo dice).
-  const avgFits =
-    extendToAverage ||
-    averages.every((a) => !a || (toNumber(a) >= low - span * 0.25 && toNumber(a) <= high + span * 0.25));
+  // La línea del precio medio nunca estira la escala: solo se dibuja si cae
+  // dentro del rango del precio visible (con un 10 % de margen). Si no, la
+  // leyenda dice si está por encima o por debajo.
+  const margin = Math.max(span, high * 0.002) * 0.1;
+  const avgFits = averages.every((a) => !a || (toNumber(a) >= low - margin && toNumber(a) <= high + margin));
   const data: Point[] = points.map((p, i) => ({
     date: p.date,
     close: closesNum[i],
@@ -273,7 +268,11 @@ function Chart({
           <li className="flex items-center gap-1.5">
             <span className="h-0 w-4 border-t-[1.5px] border-dashed border-series-2" aria-hidden />
             Tu precio medio hoy · {formatCurrency(averageCost)}
-            {!showAvgLine && <span className="text-text-muted/80">(fuera de escala)</span>}
+            {!showAvgLine && (
+              <span className="text-text-muted/80">
+                {" "}({toNumber(averageCost) > high ? "por encima de la gráfica" : "por debajo de la gráfica"})
+              </span>
+            )}
           </li>
         )}
       </ul>
