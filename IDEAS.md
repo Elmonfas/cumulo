@@ -28,6 +28,7 @@ Cuando cúmulo se lance de verdad, no antes. Plan: envolver la web actual con **
   - Extensión de «Compartir»: exportar el CSV en Trade Republic → Compartir → cúmulo, y se importa solo.
   - Widget en la pantalla de inicio con el valor de la cartera (WidgetKit, en Swift).
   - Bloqueo con Face ID al abrir la app.
+  - Icono que sigue el tema del sistema (claro, oscuro y tintado de iOS 18); como PWA, iOS solo admite una imagen fija.
 - **Riesgos**:
   - Revisión de Apple: describirla como herramienta de seguimiento personal, no como servicio financiero, o podría pedir que la publique una empresa.
   - Los precios siguen saliendo de `/api/*` en Vercel, que debe estar siempre en marcha.
