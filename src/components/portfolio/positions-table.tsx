@@ -18,13 +18,15 @@ export interface SortState {
 }
 
 // Cantidad y peso tienen columna propia solo en pantallas muy anchas (2xl); si no, van bajo el nombre.
+// Tabla de ancho fijo: las cifras tienen su ancho y el nombre se queda con el resto (cortado con «…»).
+// Nunca hay scroll horizontal.
 const COLUMNS: { key: SortKey; label: string; align: "left" | "right"; className?: string }[] = [
   { key: "name", label: "Activo", align: "left" },
-  { key: "quantity", label: "Cantidad", align: "right", className: "hidden 2xl:table-cell" },
-  { key: "price", label: "Precio", align: "right" },
-  { key: "value", label: "Valor", align: "right" },
-  { key: "weight", label: "Peso", align: "right", className: "hidden 2xl:table-cell" },
-  { key: "return", label: "Rentabilidad", align: "right" },
+  { key: "quantity", label: "Cantidad", align: "right", className: "hidden w-32 2xl:table-cell" },
+  { key: "price", label: "Precio", align: "right", className: "w-28" },
+  { key: "value", label: "Valor", align: "right", className: "w-28" },
+  { key: "weight", label: "Peso", align: "right", className: "hidden w-20 2xl:table-cell" },
+  { key: "return", label: "Rentabilidad", align: "right", className: "w-32" },
 ];
 
 const metric = (p: PositionValuation, key: Exclude<SortKey, "name">): Decimal | null =>
@@ -65,8 +67,8 @@ export function PositionsTable({
   onSelect: (assetId: string) => void;
 }) {
   return (
-    <Card className="overflow-x-auto p-0 md:p-0">
-      <table className="w-full text-sm tabular-nums">
+    <Card className="overflow-hidden p-0 md:p-0">
+      <table className="w-full table-fixed text-sm tabular-nums">
         <caption className="sr-only">Posiciones abiertas. Usa ↑ y ↓ para cambiar de posición.</caption>
         <thead>
           <tr className="border-b border-border text-xs text-text-muted">
@@ -114,11 +116,11 @@ export function PositionsTable({
                 )}
               >
                 <td className="py-2.5 pr-2.5 pl-4">
-                  <span className="flex min-w-0 items-center gap-3">
+                  <span className="flex min-w-0 items-center gap-3 overflow-hidden">
                     {asset && <AssetAvatar asset={asset} />}
-                    <span className="min-w-0">
-                      <span className={cn("block max-w-40 truncate font-medium 2xl:max-w-64", isSelected && "text-accent")}>{asset?.name ?? "Activo"}</span>
-                      <span className="block text-xs text-text-muted">
+                    <span className="min-w-0 flex-1">
+                      <span className={cn("block truncate font-medium", isSelected && "text-accent")}>{asset?.name ?? "Activo"}</span>
+                      <span className="block truncate text-xs text-text-muted">
                         {asset ? ASSET_TYPE_LABELS[asset.type] : ""}
                         <span className="2xl:hidden">
                           {" · "}

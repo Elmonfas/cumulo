@@ -469,16 +469,16 @@ function TransactionsTable({
   const cell = "px-2.5 py-2.5 text-right whitespace-nowrap";
   return (
     <Card className="p-0 md:p-0">
-      <table className="w-full text-sm tabular-nums">
+      <table className="w-full table-fixed text-sm tabular-nums">
         <caption className="sr-only">Operaciones por mes</caption>
         <thead>
           <tr className="text-xs text-text-muted">
-            <th scope="col" className="py-2.5 pr-2.5 pl-4 text-left font-medium">Fecha</th>
+            <th scope="col" className="w-24 py-2.5 pr-2.5 pl-4 text-left font-medium">Fecha</th>
             <th scope="col" className="px-2.5 py-2.5 text-left font-medium">Activo</th>
-            <th scope="col" className="px-2.5 py-2.5 text-right font-medium">Cantidad</th>
-            <th scope="col" className="hidden px-2.5 py-2.5 text-right font-medium 2xl:table-cell">Precio</th>
-            <th scope="col" className="hidden px-2.5 py-2.5 text-right font-medium 2xl:table-cell">Comisión</th>
-            <th scope="col" className="py-2.5 pr-4 pl-2.5 text-right font-medium">Importe</th>
+            <th scope="col" className="w-32 px-2.5 py-2.5 text-right font-medium">Cantidad</th>
+            <th scope="col" className="hidden w-28 px-2.5 py-2.5 text-right font-medium 2xl:table-cell">Precio</th>
+            <th scope="col" className="hidden w-24 px-2.5 py-2.5 text-right font-medium 2xl:table-cell">Comisión</th>
+            <th scope="col" className="w-28 py-2.5 pr-4 pl-2.5 text-right font-medium">Importe</th>
           </tr>
         </thead>
         {groups.map(([month, items]) => (
@@ -513,7 +513,7 @@ function TransactionsTable({
                 >
                   <td className="py-2.5 pr-2.5 pl-4 whitespace-nowrap text-text-muted">{formatDate(t.date).replace(/ \d{4}$/, "")}</td>
                   <td className="px-2.5 py-2">
-                    <span className="flex min-w-0 items-center gap-2.5">
+                    <span className="flex min-w-0 items-center gap-2.5 overflow-hidden">
                       {asset ? (
                         <AssetAvatar asset={asset} className="size-8" />
                       ) : (
@@ -522,7 +522,7 @@ function TransactionsTable({
                         </span>
                       )}
                       <span className="min-w-0">
-                        <span className={cn("block max-w-40 truncate font-medium 2xl:max-w-72", selected && "text-accent")}>
+                        <span className={cn("block truncate font-medium", selected && "text-accent")}>
                           {asset?.name ?? TRANSACTION_TYPE_LABELS[t.type]}
                         </span>
                         <span className="block text-xs text-text-muted">{TRANSACTION_TYPE_LABELS[t.type]}</span>
