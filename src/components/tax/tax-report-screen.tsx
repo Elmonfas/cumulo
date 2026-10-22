@@ -3,14 +3,15 @@
 import Decimal from "decimal.js";
 import { ChevronDown, Download, Info, Landmark, TriangleAlert } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState, type ReactNode } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { AssetAvatar } from "@/components/asset-avatar";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { VariationAmount } from "@/components/variation-badge";
-import { taxReport, taxYears, type TaxReport, type TaxSale } from "@/domain/tax";
+import { taxReport, taxYears, type TaxIncome, type TaxReport, type TaxSale } from "@/domain/tax";
+import { useWideScreen } from "@/hooks/use-media-query";
 import { usePortfolio, type PortfolioData } from "@/hooks/use-portfolio";
 import { toCsv } from "@/lib/csv-export";
 import { formatCurrency, formatDate, formatQuantity } from "@/lib/format";
@@ -52,6 +53,7 @@ export function TaxReportScreen() {
 function TaxContent({ data }: { data: PortfolioData }) {
   const years = useMemo(() => taxYears(data.transactions), [data.transactions]);
   const [year, setYear] = useState(years[0]);
+  const wide = useWideScreen();
   const report = useMemo(
     () => taxReport(data.transactions, year, (id) => data.assets.get(id)),
     [data.transactions, data.assets, year],
@@ -142,7 +144,8 @@ function TaxContent({ data }: { data: PortfolioData }) {
           <h2 id="tax-sales" className="mb-2 px-1 text-sm font-medium text-text-muted">
             Transmisiones · {report.sales.length}
           </h2>
-          <ul className="grid grid-cols-[minmax(0,1fr)] gap-2">
+          {wide && <SalesTable sales={report.sales} data={data} />}
+          <ul className="grid grid-cols-[minmax(0,1fr)] gap-2 xl:hidden">
             {report.sales.map((sale) => (
               <li key={sale.transactionId}>
                 <SaleRow sale={sale} data={data} />
@@ -157,7 +160,8 @@ function TaxContent({ data }: { data: PortfolioData }) {
           <h2 id="tax-dividends" className="mb-2 px-1 text-sm font-medium text-text-muted">
             Dividendos e intereses · {report.dividends.length}
           </h2>
-          <Card className="p-1.5 md:p-2">
+          {wide && <IncomeTable incomes={report.dividends} data={data} />}
+          <Card className="p-1.5 md:p-2 xl:hidden">
             <ul>
               {report.dividends.map((d) => {
                 const asset = d.assetId ? data.assets.get(d.assetId) : undefined;
@@ -212,7 +216,7 @@ function Summary({ report: r }: { report: TaxReport }) {
       <p className="mt-1 text-4xl font-medium tracking-[-0.02em] tabular-nums md:text-5xl">
         <VariationAmount value={r.netGains} format={signed} />
       </p>
-      <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
         <Tile label="Ganancias" value={<VariationAmount value={r.gains} format={signed} />} />
         <Tile label="Pérdidas" value={<VariationAmount value={r.losses} format={signed} />} />
         <Tile label="Dividendos (íntegro)" value={formatCurrency(r.dividendsGross)} />
@@ -309,6 +313,119 @@ function SaleRow({ sale, data }: { sale: TaxSale; data: PortfolioData }) {
         )}
       </div>
     </details>
+  );
+}
+
+const th = "px-2.5 py-2.5 font-medium first:pl-4 last:pr-4";
+const td = "px-2.5 py-2.5 whitespace-nowrap first:pl-4 last:pr-4";
+
+/** Transmisiones en tabla, con las mismas columnas que el CSV (solo escritorio ancho). Cada fila abre sus lotes FIFO. */
+function SalesTable({ sales, data }: { sales: TaxSale[]; data: PortfolioData }) {
+  const [open, setOpen] = useState<string | null>(null);
+  return (
+    <Card className="p-0 md:p-0">
+      <table className="w-full text-sm tabular-nums">
+        <thead className="text-xs text-text-muted">
+          <tr className="border-b border-border">
+            <th scope="col" className={cn(th, "text-left")}>Fecha</th>
+            <th scope="col" className={cn(th, "text-left")}>Activo</th>
+            <th scope="col" className={cn(th, "text-right")}>Cantidad</th>
+            <th scope="col" className={cn(th, "text-right")}>Transmisión</th>
+            <th scope="col" className={cn(th, "text-right")}>Adquisición</th>
+            <th scope="col" className={cn(th, "text-right")}>Resultado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sales.map((sale) => {
+            const asset = data.assets.get(sale.assetId);
+            const expanded = open === sale.transactionId;
+            return (
+              <Fragment key={sale.transactionId}>
+                <tr
+                  tabIndex={0}
+                  aria-expanded={expanded}
+                  onClick={() => setOpen(expanded ? null : sale.transactionId)}
+                  onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), setOpen(expanded ? null : sale.transactionId))}
+                  className="cursor-pointer border-b border-border outline-none last:border-0 hover:bg-surface-2 focus-visible:bg-surface-2"
+                >
+                  <td className={cn(td, "text-text-muted")}>{formatDate(sale.date)}</td>
+                  <td className={cn(td, "max-w-72 truncate font-medium")}>{asset?.name ?? "Activo"}</td>
+                  <td className={cn(td, "text-right")}>{formatQuantity(sale.quantity)}</td>
+                  <td className={cn(td, "text-right")}>{formatCurrency(sale.proceeds)}</td>
+                  <td className={cn(td, "text-right")}>{formatCurrency(sale.cost)}</td>
+                  <td className={cn(td, "text-right font-medium")}>
+                    <span className="inline-flex items-center gap-2">
+                      <VariationAmount value={sale.gain} format={signed} />
+                      {!sale.deferredLoss.isZero() && <span className="text-[11px] font-normal text-accent">2 meses</span>}
+                      <ChevronDown className={cn("size-4 text-text-muted transition-transform", expanded && "rotate-180")} aria-hidden />
+                    </span>
+                  </td>
+                </tr>
+                {expanded && (
+                  <tr className="border-b border-border bg-surface-2/50">
+                    <td colSpan={6} className="px-4 py-3 text-xs text-text-muted">
+                      <p className="mb-1">Lotes vendidos (FIFO)</p>
+                      <ul className="grid gap-0.5">
+                        {sale.lots.map((lot, i) => (
+                          <li key={`${lot.transactionId}-${i}`}>
+                            {formatDate(lot.date.slice(0, 10))} · {formatQuantity(lot.quantity)} uds · {formatCurrency(lot.cost)}
+                          </li>
+                        ))}
+                      </ul>
+                      {sale.repurchases.length > 0 && (
+                        <p className="mt-2 text-pretty">
+                          Recompraste {sale.repurchases.map((r) => `${formatQuantity(r.quantity)} el ${formatDate(r.date)}`).join(", ")}: dentro de los
+                          dos meses anteriores o posteriores a la venta. No computable: {formatCurrency(sale.deferredLoss.abs())}.
+                        </p>
+                      )}
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+    </Card>
+  );
+}
+
+/** Dividendos e intereses en tabla (solo escritorio ancho). */
+function IncomeTable({ incomes, data }: { incomes: TaxIncome[]; data: PortfolioData }) {
+  return (
+    <Card className="p-0 md:p-0">
+      <table className="w-full text-sm tabular-nums">
+        <thead className="text-xs text-text-muted">
+          <tr className="border-b border-border">
+            <th scope="col" className={cn(th, "text-left")}>Fecha</th>
+            <th scope="col" className={cn(th, "text-left")}>Activo</th>
+            <th scope="col" className={cn(th, "text-left")}>Tipo</th>
+            <th scope="col" className={cn(th, "text-left")}>País</th>
+            <th scope="col" className={cn(th, "text-right")}>Bruto</th>
+            <th scope="col" className={cn(th, "text-right")}>Retención</th>
+            <th scope="col" className={cn(th, "text-right")}>Neto</th>
+          </tr>
+        </thead>
+        <tbody>
+          {incomes.map((d) => {
+            const asset = d.assetId ? data.assets.get(d.assetId) : undefined;
+            return (
+              <tr key={d.transactionId} className="border-b border-border last:border-0">
+                <td className={cn(td, "text-text-muted")}>{formatDate(d.date)}</td>
+                <td className={cn(td, "max-w-72 truncate font-medium")}>
+                  {asset?.name ?? (d.kind === "interest" ? "Intereses de la cuenta" : "Dividendo")}
+                </td>
+                <td className={td}>{d.kind === "interest" ? "Interés" : "Dividendo"}</td>
+                <td className={td}>{d.country === "ES" ? "España" : d.country}</td>
+                <td className={cn(td, "text-right")}>{formatCurrency(d.gross)}</td>
+                <td className={cn(td, "text-right")}>{formatCurrency(d.withholding)}</td>
+                <td className={cn(td, "text-right font-medium")}>{formatCurrency(d.net)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </Card>
   );
 }
 

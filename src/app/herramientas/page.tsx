@@ -48,7 +48,7 @@ export default function ToolsPage() {
   return (
     <>
       <PageHeader title="Herramientas" description="Análisis y calculadoras para planificar." />
-      <ul className="grid gap-4 md:grid-cols-2 md:gap-5">
+      <ul className="grid gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-3">
         {TOOLS.map(({ href, title, description, icon: Icon }) => (
           <li key={href}>
             <Link

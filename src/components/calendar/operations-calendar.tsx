@@ -14,6 +14,7 @@ import { activityByDay, intensity, intensityThresholds, monthGrid, type DayActiv
 import type { Asset } from "@/domain/models";
 import { transactionTotal } from "@/domain/portfolio";
 import { useLiveQuery } from "@/hooks/use-live-query";
+import { useWideScreen } from "@/hooks/use-media-query";
 import { formatCurrency, formatDate, formatMonthYear, formatQuantity, todayIso } from "@/lib/format";
 import { TRANSACTION_TYPE_LABELS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
@@ -88,9 +89,13 @@ function CalendarContent({ transactions, assets }: { transactions: Parameters<ty
   );
   const [selected, setSelected] = useState<string | null>(null);
 
+  // En escritorio ancho se ven tres meses: los dos anteriores y el elegido.
+  const wide = useWideScreen();
+  const shown = wide ? [shiftMonth(month, -2), shiftMonth(month, -1), month] : [month];
   const key = monthKey(month);
-  const weeks = monthGrid(month.year, month.month);
-  const inMonth = [...days.values()].filter((d) => d.date.startsWith(key));
+  const shownKeys = shown.map(monthKey);
+  const inMonth = [...days.values()].filter((d) => shownKeys.includes(d.date.slice(0, 7)));
+  const title = wide ? `${formatMonthYear(shownKeys[0])} – ${formatMonthYear(key)}` : formatMonthYear(key);
   const totals = inMonth.reduce(
     (sum, d) => ({ bought: sum.bought.plus(d.bought), sold: sum.sold.plus(d.sold), days: sum.days + 1 }),
     { bought: new Decimal(0), sold: new Decimal(0), days: 0 },
@@ -104,30 +109,36 @@ function CalendarContent({ transactions, assets }: { transactions: Parameters<ty
   const selectedDay = selected ? days.get(selected) : undefined;
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,20rem)] md:items-start md:gap-5">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,20rem)] md:items-start md:gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
       <Card className="p-4 md:p-6">
         <div className="flex items-center justify-between gap-2">
           <MonthButton label="Mes anterior" disabled={!canBack} onClick={() => go(-1)}>
             <ChevronLeft className="size-5" aria-hidden />
           </MonthButton>
           <h2 className="text-base font-medium first-letter:uppercase" aria-live="polite">
-            {formatMonthYear(key)}
+            {title}
           </h2>
           <MonthButton label="Mes siguiente" disabled={!canForward} onClick={() => go(1)}>
             <ChevronRight className="size-5" aria-hidden />
           </MonthButton>
         </div>
 
-        <CalendarGrid
-          className="mt-4"
-          label={`Operaciones de ${formatMonthYear(key)}`}
-          weeks={weeks}
-          days={days}
-          thresholds={thresholds}
-          today={today}
-          selected={selected}
-          onSelect={(date) => setSelected(date === selected ? null : date)}
-        />
+        <div className={cn("mt-4", wide && "grid grid-cols-3 gap-8")}>
+          {shown.map((m) => (
+            <div key={monthKey(m)} className="min-w-0">
+              {wide && <h3 className="mb-2 text-sm font-medium text-text-muted first-letter:uppercase">{formatMonthYear(monthKey(m))}</h3>}
+              <CalendarGrid
+                label={`Operaciones de ${formatMonthYear(monthKey(m))}`}
+                weeks={monthGrid(m.year, m.month)}
+                days={days}
+                thresholds={thresholds}
+                today={today}
+                selected={selected}
+                onSelect={(date) => setSelected(date === selected ? null : date)}
+              />
+            </div>
+          ))}
+        </div>
 
         <Legend />
       </Card>
@@ -143,7 +154,7 @@ function CalendarContent({ transactions, assets }: { transactions: Parameters<ty
           <DayDetail day={selectedDay} assets={assets} />
         ) : (
           <p className="px-1 text-sm text-text-muted">
-            {inMonth.length > 0 ? "Toca un día marcado para ver sus operaciones." : "Este mes no hiciste operaciones."}
+            {inMonth.length > 0 ? "Toca un día marcado para ver sus operaciones." : wide ? "En estos meses no hiciste operaciones." : "Este mes no hiciste operaciones."}
           </p>
         )}
       </div>

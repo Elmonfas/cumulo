@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AssetAvatar } from "@/components/asset-avatar";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/layout/page-header";
@@ -29,6 +29,7 @@ import { getRepositories, type Repositories } from "@/data/repositories";
 import type { Asset, Transaction, TransactionType } from "@/domain/models";
 import { buildPortfolio, sortTransactions, transactionTotal } from "@/domain/portfolio";
 import { useLiveQuery } from "@/hooks/use-live-query";
+import { useWideScreen } from "@/hooks/use-media-query";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { OperationDetail } from "@/components/operation-detail";
 import { ShareButton } from "@/components/share/share-sheet";
@@ -84,6 +85,7 @@ export function TransactionsScreen() {
   const data = useLiveQuery(loadData);
   const portfolio = usePortfolio();
   const [sheet, setSheet] = useState<SheetState>({ open: false });
+  const wide = useWideScreen();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const openNew = () => setSheet({ open: true, mode: "new", key: nextSheetKey() });
@@ -131,6 +133,75 @@ export function TransactionsScreen() {
 
   const editing = sheet.open && sheet.mode !== "new" ? sheet.transaction : undefined;
   const editingAsset = editing?.assetId && data.status === "ready" ? data.data.assets.get(editing.assetId) ?? null : null;
+
+  const panelTitle = !sheet.open || sheet.mode === "new"
+            ? "Nueva operación"
+            : sheet.mode === "detail"
+              ? `${TRANSACTION_TYPE_LABELS[sheet.transaction.type]} del ${formatDate(sheet.transaction.date)}`
+              : "Editar operación";
+  const panelBody = (
+    <>
+        {sheet.open && sheet.mode === "detail" && (
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 pt-1">
+            {editingAsset && (
+              <div className="flex items-center gap-3">
+                <AssetAvatar asset={editingAsset} />
+                <p className="min-w-0 truncate font-medium">{editingAsset.name}</p>
+              </div>
+            )}
+            {portfolio.status === "ready" ? (
+              <OperationDetail
+                transaction={sheet.transaction}
+                state={portfolio.data.state}
+                price={
+                  sheet.transaction.assetId
+                    ? (portfolio.data.valuation.positions.find((p) => p.position.assetId === sheet.transaction.assetId)?.price ?? null)
+                    : null
+                }
+              />
+            ) : (
+              <div className="h-40 animate-pulse rounded-2xl bg-surface-2" aria-hidden />
+            )}
+            {portfolio.status === "ready" && isAssetTransaction(sheet.transaction.type) && (
+              <ShareButton
+                title="Compartir operación"
+                fileName={`cumulo-${sheet.transaction.type === "buy" ? "compra" : "venta"}-${sheet.transaction.date.slice(0, 10)}`}
+                build={(o) => buildOperationCard(portfolio.data, sheet.transaction, o)}
+                label="Compartir operación"
+                className="h-12 text-sm"
+              />
+            )}
+            <Button variant="secondary" size="lg" onClick={() => setSheet({ ...sheet, mode: "edit", key: nextSheetKey() })}>
+              <Pencil aria-hidden />
+              Editar o borrar
+            </Button>
+          </div>
+        )}
+        {sheet.open && sheet.mode !== "detail" && (
+          <TransactionForm
+            key={sheet.key}
+            transaction={editing}
+            asset={editingAsset}
+            onDone={() => setSheet({ open: false })}
+          />
+        )}
+    </>
+  );
+
+  // Atajos de escritorio: N abre una operación nueva y Esc cierra el panel.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable], [role=dialog]")) return;
+      if (event.key === "n" || event.key === "N") {
+        event.preventDefault();
+        openNew();
+      } else if (event.key === "Escape" && wide) setSheet({ open: false });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
 
   return (
     <>
@@ -197,6 +268,8 @@ export function TransactionsScreen() {
               </Button>
             </Card>
           )}
+          {/* Escritorio: totales, buscador y filtros en una franja. */}
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] xl:items-center">
           <div className="grid grid-cols-2 gap-3">
             <Card className="p-4 md:p-5">
               <p className="text-xs text-text-muted">Total comprado</p>
@@ -255,6 +328,7 @@ export function TransactionsScreen() {
               ))}
             </div>
           </div>
+          </div>
 
           {view.visibleCount === 0 && (
             <Card className="py-10 text-center text-sm text-text-muted">
@@ -272,7 +346,18 @@ export function TransactionsScreen() {
             </Card>
           )}
 
-          {view.groups.map(([month, items]) => (
+          {/* Escritorio: tabla a la izquierda y el detalle o el formulario a la derecha. */}
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:gap-5 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:items-start">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:gap-5">
+          {wide && view.visibleCount > 0 && (
+            <TransactionsTable
+              groups={view.groups}
+              assets={data.data.assets}
+              selectedId={sheet.open && sheet.mode !== "new" ? sheet.transaction.id : null}
+              onSelect={openTransaction}
+            />
+          )}
+          {!wide && view.groups.map(([month, items]) => (
             <section key={month} aria-labelledby={`month-${month}`}>
               <h2 id={`month-${month}`} className="mb-2 px-1 text-sm font-medium text-text-muted first-letter:uppercase">
                 {formatMonthYear(month)}
@@ -292,64 +377,44 @@ export function TransactionsScreen() {
               </Card>
             </section>
           ))}
+          </div>
+
+          {wide && (
+            <Card aria-label={sheet.open ? panelTitle : "Detalle"} className="sticky top-8 max-h-[calc(100dvh-4rem)] overflow-y-auto">
+              {sheet.open ? (
+                <>
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <h2 className="truncate font-medium">{panelTitle}</h2>
+                    <Button variant="ghost" size="icon-sm" aria-label="Cerrar" onClick={() => setSheet({ open: false })}>
+                      <X aria-hidden />
+                    </Button>
+                  </div>
+                  {panelBody}
+                </>
+              ) : (
+                <div className="flex flex-col items-center gap-3 py-10 text-center">
+                  <p className="text-sm text-pretty text-text-muted">Elige una operación para ver su detalle, o añade una nueva.</p>
+                  <Button onClick={openNew}>
+                    <Plus aria-hidden />
+                    Nueva operación
+                  </Button>
+                  <p className="text-xs text-text-muted">
+                    Atajo: <kbd className="rounded border border-border px-1.5 py-0.5 font-mono text-[11px]">N</kbd>
+                  </p>
+                </div>
+              )}
+            </Card>
+          )}
+          </div>
         </div>
       )}
 
       <Sheet
-        open={sheet.open}
+        open={!wide && sheet.open}
         onOpenChange={(open) => !open && setSheet({ open: false })}
-        title={
-          !sheet.open || sheet.mode === "new"
-            ? "Nueva operación"
-            : sheet.mode === "detail"
-              ? `${TRANSACTION_TYPE_LABELS[sheet.transaction.type]} del ${formatDate(sheet.transaction.date)}`
-              : "Editar operación"
-        }
+        title={panelTitle}
       >
-        {sheet.open && sheet.mode === "detail" && (
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 pt-1">
-            {editingAsset && (
-              <div className="flex items-center gap-3">
-                <AssetAvatar asset={editingAsset} />
-                <p className="min-w-0 truncate font-medium">{editingAsset.name}</p>
-              </div>
-            )}
-            {portfolio.status === "ready" ? (
-              <OperationDetail
-                transaction={sheet.transaction}
-                state={portfolio.data.state}
-                price={
-                  sheet.transaction.assetId
-                    ? (portfolio.data.valuation.positions.find((p) => p.position.assetId === sheet.transaction.assetId)?.price ?? null)
-                    : null
-                }
-              />
-            ) : (
-              <div className="h-40 animate-pulse rounded-2xl bg-surface-2" aria-hidden />
-            )}
-            {portfolio.status === "ready" && isAssetTransaction(sheet.transaction.type) && (
-              <ShareButton
-                title="Compartir operación"
-                fileName={`cumulo-${sheet.transaction.type === "buy" ? "compra" : "venta"}-${sheet.transaction.date.slice(0, 10)}`}
-                build={(o) => buildOperationCard(portfolio.data, sheet.transaction, o)}
-                label="Compartir operación"
-                className="h-12 text-sm"
-              />
-            )}
-            <Button variant="secondary" size="lg" onClick={() => setSheet({ ...sheet, mode: "edit", key: nextSheetKey() })}>
-              <Pencil aria-hidden />
-              Editar o borrar
-            </Button>
-          </div>
-        )}
-        {sheet.open && sheet.mode !== "detail" && (
-          <TransactionForm
-            key={sheet.key}
-            transaction={editing}
-            asset={editingAsset}
-            onDone={() => setSheet({ open: false })}
-          />
-        )}
+        {panelBody}
       </Sheet>
     </>
   );
@@ -386,6 +451,102 @@ function TransactionRow({ transaction: t, asset, onSelect }: { transaction: Tran
         {t.type === "sell" || t.type === "dividend" || t.type === "interest" ? `+${formatCurrency(total)}` : formatCurrency(total)}
       </span>
     </button>
+  );
+}
+
+/** Operaciones en tabla, agrupadas por mes con su título fijo arriba (solo escritorio ancho). */
+function TransactionsTable({
+  groups,
+  assets,
+  selectedId,
+  onSelect,
+}: {
+  groups: [string, Transaction[]][];
+  assets: Map<string, Asset>;
+  selectedId: string | null;
+  onSelect: (t: Transaction) => void;
+}) {
+  const cell = "px-2.5 py-2.5 text-right whitespace-nowrap";
+  return (
+    <Card className="p-0 md:p-0">
+      <table className="w-full text-sm tabular-nums">
+        <caption className="sr-only">Operaciones por mes</caption>
+        <thead>
+          <tr className="text-xs text-text-muted">
+            <th scope="col" className="py-2.5 pr-2.5 pl-4 text-left font-medium">Fecha</th>
+            <th scope="col" className="px-2.5 py-2.5 text-left font-medium">Activo</th>
+            <th scope="col" className="px-2.5 py-2.5 text-right font-medium">Cantidad</th>
+            <th scope="col" className="hidden px-2.5 py-2.5 text-right font-medium 2xl:table-cell">Precio</th>
+            <th scope="col" className="hidden px-2.5 py-2.5 text-right font-medium 2xl:table-cell">Comisión</th>
+            <th scope="col" className="py-2.5 pr-4 pl-2.5 text-right font-medium">Importe</th>
+          </tr>
+        </thead>
+        {groups.map(([month, items]) => (
+          <tbody key={month}>
+            <tr>
+              <th
+                colSpan={6}
+                scope="colgroup"
+                className="sticky top-0 z-10 border-y border-border bg-surface-2 px-4 py-1.5 text-left text-xs font-medium text-text-muted first-letter:uppercase"
+              >
+                {formatMonthYear(month)} · {items.length}
+              </th>
+            </tr>
+            {items.map((t) => {
+              const asset = t.assetId ? assets.get(t.assetId) : undefined;
+              const total = transactionTotal(t);
+              const income = t.type === "sell" || t.type === "dividend" || t.type === "interest";
+              const fee = new Decimal(t.fee);
+              const Icon = CASH_ICONS[t.type];
+              const selected = t.id === selectedId;
+              return (
+                <tr
+                  key={t.id}
+                  tabIndex={0}
+                  aria-selected={selected}
+                  onClick={() => onSelect(t)}
+                  onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), onSelect(t))}
+                  className={cn(
+                    "cursor-pointer border-b border-border transition-colors outline-none last:border-0 focus-visible:bg-surface-2",
+                    selected ? "bg-accent/10" : "hover:bg-surface-2",
+                  )}
+                >
+                  <td className="py-2.5 pr-2.5 pl-4 whitespace-nowrap text-text-muted">{formatDate(t.date).replace(/ \d{4}$/, "")}</td>
+                  <td className="px-2.5 py-2">
+                    <span className="flex min-w-0 items-center gap-2.5">
+                      {asset ? (
+                        <AssetAvatar asset={asset} className="size-8" />
+                      ) : (
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-2 text-text-muted" aria-hidden>
+                          {Icon && <Icon className="size-4" />}
+                        </span>
+                      )}
+                      <span className="min-w-0">
+                        <span className={cn("block max-w-40 truncate font-medium 2xl:max-w-72", selected && "text-accent")}>
+                          {asset?.name ?? TRANSACTION_TYPE_LABELS[t.type]}
+                        </span>
+                        <span className="block text-xs text-text-muted">{TRANSACTION_TYPE_LABELS[t.type]}</span>
+                      </span>
+                    </span>
+                  </td>
+                  <td className={cell}>
+                    {isAssetTransaction(t.type) ? formatQuantity(t.quantity) : "—"}
+                    {isAssetTransaction(t.type) && (
+                      <span className="block text-xs text-text-muted 2xl:hidden">a {formatCurrency(t.price)}</span>
+                    )}
+                  </td>
+                  <td className={cn(cell, "hidden 2xl:table-cell")}>{isAssetTransaction(t.type) ? formatCurrency(t.price) : "—"}</td>
+                  <td className={cn(cell, "hidden 2xl:table-cell")}>{fee.isZero() ? "—" : formatCurrency(fee)}</td>
+                  <td className={cn(cell, "pr-4 font-medium")}>
+                    {income ? `+${formatCurrency(total)}` : formatCurrency(total)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        ))}
+      </table>
+    </Card>
   );
 }
 

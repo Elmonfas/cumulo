@@ -6,6 +6,7 @@ import { useRef, useState, type DragEvent } from "react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { transactionTotal } from "@/domain/portfolio";
 import { getRepositories } from "@/data/repositories";
 import type { TransactionType } from "@/domain/models";
 import { parseTradeRepublicCsv } from "@/importers/trade-republic";
@@ -260,7 +261,46 @@ function PreviewStep({
         </Card>
       )}
 
-      <Card className="p-1.5 md:p-2">
+      {/* Escritorio: todas las columnas del archivo en una tabla. */}
+      <Card className="hidden p-0 md:p-0 xl:block">
+        <div className="max-h-[32rem] overflow-y-auto">
+          <table className="w-full text-sm tabular-nums">
+            <caption className="sr-only">Operaciones del archivo</caption>
+            <thead className="sticky top-0 z-10 bg-surface-2 text-xs text-text-muted">
+              <tr>
+                {["Línea", "Fecha", "Tipo", "Activo", "ISIN", "Cantidad", "Precio", "Comisión", "Impuestos", "Importe", "Estado"].map((h, i) => (
+                  <th key={h} scope="col" className={cn("px-2.5 py-2 font-medium first:pl-4 last:pr-4", i >= 5 && i <= 9 ? "text-right" : "text-left")}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {preview.rows.map(({ transaction: t, duplicate, duplicateOf }) => (
+                <tr key={`${t.line}-${t.importHash}`} className={cn("border-b border-border last:border-0", duplicate && "opacity-50")}>
+                  <td className="py-2 pr-2.5 pl-4 text-text-muted">{t.line}</td>
+                  <td className="px-2.5 whitespace-nowrap">{formatDate(t.date)}</td>
+                  <td className="px-2.5 whitespace-nowrap">{TRANSACTION_TYPE_LABELS[t.type]}</td>
+                  <td className="max-w-56 truncate px-2.5 font-medium">{t.asset?.name ?? "—"}</td>
+                  <td className="px-2.5 font-mono text-xs text-text-muted">{t.asset?.isin ?? "—"}</td>
+                  <td className="px-2.5 text-right">{formatQuantity(t.quantity)}</td>
+                  <td className="px-2.5 text-right whitespace-nowrap">{formatCurrency(t.price)}</td>
+                  <td className="px-2.5 text-right whitespace-nowrap">{formatCurrency(t.fee)}</td>
+                  <td className="px-2.5 text-right whitespace-nowrap">{formatCurrency(t.tax)}</td>
+                  <td className="px-2.5 text-right font-medium whitespace-nowrap">
+                    {formatCurrency(transactionTotal({ ...t, id: "", origin: "csv-tr" }))}
+                  </td>
+                  <td className="py-2 pr-4 pl-2.5 text-xs whitespace-nowrap text-text-muted">
+                    {duplicate ? (duplicateOf === "manual" ? "Ya la tienes" : "Ya importada") : "Nueva"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      <Card className="p-1.5 md:p-2 xl:hidden">
         <ul className="max-h-[26rem] overflow-y-auto">
           {preview.rows.map(({ transaction: t, duplicate, duplicateOf }) => (
             <li key={`${t.line}-${t.importHash}`} className={cn("flex items-center gap-3 rounded-2xl px-2.5 py-2.5", duplicate && "opacity-50")}>

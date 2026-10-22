@@ -146,7 +146,7 @@ function YearView({ summary: s, data, isCurrent }: { summary: YearSummary; data:
         <Card>
           <h2 className="font-medium">Mes a mes</h2>
           <p className="mt-0.5 text-xs text-text-muted">Rentabilidad de cada mes, sin contar lo que aportaste.</p>
-          <div className="mt-4 h-52 w-full" role="img" aria-label="Rentabilidad de cada mes">
+          <div className="mt-4 h-52 w-full xl:h-72" role="img" aria-label="Rentabilidad de cada mes">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={bars} margin={{ top: 6, right: 0, bottom: 0, left: 0 }}>
                 <XAxis dataKey="label" tickLine={false} axisLine={false} interval={0} tick={{ fill: "var(--text-muted)", fontSize: 11 }} />

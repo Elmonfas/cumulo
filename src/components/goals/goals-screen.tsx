@@ -65,7 +65,7 @@ export function GoalsScreen() {
         />
       )}
       {progress && progress.length > 0 && (
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-2 md:gap-5">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-3">
           {progress.map(({ goal, progress: p }) => (
             <GoalCard key={goal.id} goal={goal} progress={p} onEdit={() => setSheet({ open: true, goal })} />
           ))}
