@@ -37,7 +37,7 @@ import { cn } from "@/lib/utils";
 // Recharts se carga aparte para no retrasar el primer pintado.
 const ValueChart = dynamic(() => import("@/components/charts/value-chart").then((m) => m.ValueChart), {
   ssr: false,
-  loading: () => <div className="h-52 animate-pulse rounded-2xl bg-surface-2 md:h-64" aria-hidden />,
+  loading: () => <div className="h-52 animate-pulse rounded-2xl bg-surface-2 md:h-64 xl:h-80" aria-hidden />,
 });
 const AllocationDonut = dynamic(() => import("@/components/charts/allocation-donut").then((m) => m.AllocationDonut), {
   ssr: false,
@@ -189,9 +189,11 @@ function HomeContent({
   const worst = ranked.length > 3 ? ranked.slice(-3).reverse().filter((p) => !best.includes(p)) : [];
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:gap-5">
-      <TriggeredAlerts />
-      <Card>
+    // En escritorio ancho (xl) pasa a panel de 12 columnas: la gráfica a la
+    // izquierda y distribución, calendario y objetivo a la derecha.
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:gap-5 xl:grid-cols-12 xl:items-start">
+      <TriggeredAlerts className="xl:col-span-12" />
+      <Card className="xl:col-span-8">
         <div className="flex items-start justify-between gap-3">
           <p className="min-w-0 truncate text-sm text-text-muted">{focusAsset ? focusAsset.name : "Valor de la cartera"}</p>
           <RefreshPricesButton refreshing={refreshing} lastFetchedAt={data.lastFetchedAt} onRefresh={onRefresh} />
@@ -232,7 +234,7 @@ function HomeContent({
           {history ? (
             <ValueChart points={history.points} investedLabel="Invertido" />
           ) : (
-            <div className="h-52 animate-pulse rounded-2xl bg-surface-2 md:h-64" aria-hidden />
+            <div className="h-52 animate-pulse rounded-2xl bg-surface-2 md:h-64 xl:h-80" aria-hidden />
           )}
         </div>
         <QuoteFreshness
@@ -243,6 +245,8 @@ function HomeContent({
         />
       </Card>
 
+      {/* Columna derecha en escritorio; en móvil `contents` deja cada tarjeta en su sitio. */}
+      <div className="contents xl:col-span-4 xl:flex xl:flex-col xl:gap-5">
       {/* Segunda fila: distribución y calendario del mes, siempre en dos columnas. */}
       {byAsset.length > 0 && (
         <div className="grid grid-cols-2 gap-3 md:gap-5">
@@ -254,8 +258,9 @@ function HomeContent({
       <GoalWidget value={v.totalValue} transactions={data.transactions} />
 
       {byAsset.length > 0 && <BenchmarkCard data={data} />}
+      </div>
 
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-2 md:gap-5 md:items-start">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-2 md:gap-5 md:items-start xl:col-span-12">
       <Card>
         <h2 className="font-medium">Resumen</h2>
         <dl className="mt-3 divide-y divide-border text-sm">
@@ -287,7 +292,7 @@ function HomeContent({
       </div>
 
       {byAsset.length > 0 && (
-        <Card className="min-w-0">
+        <Card className="min-w-0 xl:col-span-12">
           <h2 className="font-medium">Rentabilidad por posición</h2>
           <p className="mt-0.5 text-xs text-text-muted">No realizado</p>
           <div className="@container mt-3">

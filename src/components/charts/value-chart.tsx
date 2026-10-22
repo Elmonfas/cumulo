@@ -49,7 +49,7 @@ export function ValueChart({ points: all, investedLabel }: { points: HistoryPoin
   const gradientId = `fill-value-${useId().replace(/[^\w-]/g, "")}`;
 
   return (
-    <div className="h-52 w-full md:h-64" role="img" aria-label="Evolución del patrimonio en el periodo">
+    <div className="h-52 w-full md:h-64 xl:h-80" role="img" aria-label="Evolución del patrimonio en el periodo">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ top: 8, right: 4, bottom: 0, left: 0 }}>
           <defs>
