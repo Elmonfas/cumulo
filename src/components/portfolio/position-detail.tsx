@@ -78,6 +78,19 @@ export function PositionDetail({ data, assetId }: { data: PortfolioData; assetId
           </p>
         </div>
       </div>
+      {/* Cotización del momento (se refresca cada 30 s con la app abierta). Es un dato público: no se oculta en modo privado. */}
+      {valuation?.price && (
+        <div>
+          <p className="flex items-center gap-1.5 text-xs text-text-muted">
+            {asset.priceSource !== "manual" && <span className="size-1.5 rounded-full bg-accent motion-safe:animate-pulse" aria-hidden />}
+            {asset.priceSource === "manual" ? "Precio manual" : "Precio ahora"}
+            {cached && ` · ${formatTime(cached.updatedAt)}`}
+          </p>
+          <p className="mt-0.5 text-3xl font-medium tracking-[-0.02em] tabular-nums" aria-live="polite">
+            {formatCurrency(valuation.price, { reveal: true })}
+          </p>
+        </div>
+      )}
       <ShareButton
         title={`Compartir ${asset.ticker ?? asset.name}`}
         fileName={`cumulo-${(asset.ticker ?? "posicion").toLowerCase()}`}
