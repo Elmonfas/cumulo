@@ -167,9 +167,11 @@ export async function buildOperationCard(data: PortfolioData, transaction: Trans
 
   const d = buyDetail(data.state, transaction, price, todayIso());
   const closes = await closesFor(asset, date);
-  const sinceBuy = price ? price.div(transaction.price).minus(1) : null;
+  // Precio con comisiones: es la base del %, así la cuenta cuadra a simple vista.
+  const buyPrice = d.unitCost ?? new Decimal(transaction.price);
+  const sinceBuy = price && buyPrice.gt(0) ? price.div(buyPrice).minus(1) : null;
   const stats: CardModel["stats"] = [
-    { label: "Precio de compra", value: money(transaction.price) },
+    { label: "Precio de compra", value: money(buyPrice) },
     { label: "Precio hoy", value: price ? money(price) : "—" },
     { label: "Días en cartera", value: formatNumber(new Decimal(d.daysHeld), 0) },
     { label: "Rentabilidad anual", value: d.annualized ? formatPercent(d.annualized) : "Menos de 1 año", tone: statTone(d.annualized) },
@@ -187,7 +189,7 @@ export async function buildOperationCard(data: PortfolioData, transaction: Trans
     heroLabel: "Desde que compré",
     hero: hero ? formatPercent(hero) : "—",
     tone: tone(hero),
-    subtitle: `Compré el ${formatDate(date)} a ${money(transaction.price)}`,
+    subtitle: `Compré el ${formatDate(date)} a ${money(buyPrice)}${buyPrice.eq(transaction.price) ? "" : " con comisión"}`,
     chart: lineChart(closes, [transaction], price, date),
     stats,
     footer: footer(),

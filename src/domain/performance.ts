@@ -9,6 +9,8 @@ export interface BuyDetail {
   /** Lo pagado, comisiones incluidas. */
   cost: Decimal;
   quantity: Decimal;
+  /** Precio por unidad con comisiones e impuestos incluidos: la base de la rentabilidad. */
+  unitCost: Decimal | null;
   /** Lo que queda sin vender de esta compra. */
   remainingQuantity: Decimal;
   soldQuantity: Decimal;
@@ -41,10 +43,12 @@ export function buyDetail(state: PortfolioState, t: Transaction, price: Decimal 
   const gain = currentValue ? currentValue.minus(remainingCost) : null;
   const gainPct = gain && remainingCost.gt(0) ? gain.div(remainingCost) : null;
   const daysHeld = daysBetween(t.date, today);
+  const cost = transactionTotal(t);
   return {
     kind: "buy",
-    cost: transactionTotal(t),
+    cost,
     quantity,
+    unitCost: quantity.gt(0) ? cost.div(quantity) : null,
     remainingQuantity,
     soldQuantity: quantity.minus(remainingQuantity),
     remainingCost,

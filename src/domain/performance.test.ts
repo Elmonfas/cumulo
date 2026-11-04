@@ -45,6 +45,15 @@ describe("detalle por operación", () => {
     expect(d.annualized).toBeNull();
   });
 
+  it("el precio por unidad incluye la comisión y cuadra con la rentabilidad", () => {
+    // 0,5 @ 202,10 (+1) = 102,05 → 204,10 por unidad. A 230,75 valen 115,375 → +13,0573 %.
+    const buy = t("b", "buy", "2026-10-30", "0.5", "202.10", "1");
+    const d = buyDetail(buildPortfolio([buy]), buy, new Decimal("230.75"), "2026-11-04");
+    expect(d.unitCost!.toString()).toBe("204.1");
+    expect(d.gainPct!.toFixed(6)).toBe("0.130573");
+    expect(new Decimal("230.75").div(d.unitCost!).minus(1).toFixed(6)).toBe(d.gainPct!.toFixed(6));
+  });
+
   it("una compra de hace más de un año se anualiza", () => {
     const solo = buildPortfolio([b1]);
     const d = buyDetail(solo, b1, new Decimal("121.121"), "2026-01-09");
