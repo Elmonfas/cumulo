@@ -18,7 +18,7 @@ Ideas fuera del alcance de la fase en curso. Nada de esto se implementa hasta qu
 - Renta: deducción por doble imposición país por país y tabla de tipos de convenio (hoy 15 % para todos).
 - Renta: añadir intereses a mano desde el formulario de operaciones.
 - Primer uso: medir dónde abandona la gente (embudo de bienvenida e importación) sin datos personales. Pendiente de decidir: rompe en parte el principio de que el servidor no sabe nada de ti.
-- Importador: capturas reales de Trade Republic en la guía paso a paso (hoy son pasos con texto) y confirmar la ruta exacta en la web de TR.
+- Importador: la ruta en la app de TR ya está comprobada (5 nov 2026); falta confirmar dónde está la exportación en la web de TR y, si ayuda, añadir capturas recortadas a la guía.
 
 ## Última versión: app nativa en la App Store
 

@@ -409,8 +409,8 @@ const GUIDES = {
   movil: {
     label: "En el iPhone",
     steps: [
-      "En la app de Trade Republic: Perfil → Extractos → Exportación de transacciones.",
-      "Elige desde la apertura de la cuenta y exporta.",
+      "En la app de Trade Republic, toca tu inicial (arriba a la derecha) → «Certificados y Extractos» → «Exportación de transacción».",
+      "Deja «Inicio del período» en la primera fecha que sale (la apertura de tu cuenta) y toca «Crear».",
       "En el menú Compartir, toca «Guardar en Archivos».",
       "Vuelve aquí, toca «Elegir archivo» y ábrelo desde Archivos.",
     ],
@@ -419,7 +419,7 @@ const GUIDES = {
     label: "En el ordenador",
     steps: [
       "Entra en la web de Trade Republic (app.traderepublic.com).",
-      "Perfil → Extractos → Exportación de transacciones, desde la apertura de la cuenta.",
+      "Busca «Exportación de transacción» en tu perfil, dentro de los extractos. Si no aparece, hazlo desde el móvil.",
       "Arrastra el archivo descargado al recuadro de arriba.",
     ],
   },
