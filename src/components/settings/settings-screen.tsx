@@ -15,11 +15,11 @@ import { getRepositories, type Repositories } from "@/data/repositories";
 import type { Settings } from "@/domain/models";
 import { useLiveQuery } from "@/hooks/use-live-query";
 import { RestoreBackup } from "@/components/backup/restore-backup";
-import { isIos } from "@/lib/device";
-import { downloadFile, shareOrDownload, squareThumbnail } from "@/lib/image";
+import { saveBackupCopy } from "@/lib/backup-file";
+import { squareThumbnail } from "@/lib/image";
 import { storageStatus, type StorageStatus } from "@/lib/storage";
 import { cn } from "@/lib/utils";
-import { exportBackup, wipeAllData } from "@/services/backup";
+import { wipeAllData } from "@/services/backup";
 
 const loadSettings = (repositories: Repositories) => repositories.settings.get();
 
@@ -167,11 +167,7 @@ function DataCard() {
   }, []);
 
   async function onExport() {
-    const { fileName, json } = await exportBackup(getRepositories());
-    const file = new File([json], fileName, { type: "application/json" });
-    // En iPhone, el menú Compartir deja guardarlo en Archivos o iCloud Drive.
-    if (isIos()) await shareOrDownload(file, "Copia de cúmulo");
-    else downloadFile(file);
+    await saveBackupCopy(getRepositories());
   }
 
   async function onWipe() {

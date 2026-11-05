@@ -17,6 +17,8 @@ Ideas fuera del alcance de la fase en curso. Nada de esto se implementa hasta qu
 - Importador TR: tipos de efectivo nombrados por Portfolio Performance sin filas de ejemplo (BONUS, REFERRAL, STOCKPERK…).
 - Renta: deducción por doble imposición país por país y tabla de tipos de convenio (hoy 15 % para todos).
 - Renta: añadir intereses a mano desde el formulario de operaciones.
+- Primer uso: medir dónde abandona la gente (embudo de bienvenida e importación) sin datos personales. Pendiente de decidir: rompe en parte el principio de que el servidor no sabe nada de ti.
+- Importador: capturas reales de Trade Republic en la guía paso a paso (hoy son pasos con texto) y confirmar la ruta exacta en la web de TR.
 
 ## Última versión: app nativa en la App Store
 

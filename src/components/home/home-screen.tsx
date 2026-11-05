@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { QuoteFreshness, quotesOf } from "@/components/portfolio/quote-freshness";
 import { RefreshPricesButton } from "@/components/portfolio/refresh-prices-button";
 import { TriggeredAlerts } from "./triggered-alerts";
+import { FirstSteps } from "./first-steps";
 import { Welcome } from "./welcome";
 import { CalendarWidget } from "@/components/calendar/calendar-widget";
 import { GoalWidget } from "@/components/goals/goal-widget";
@@ -230,6 +231,7 @@ function HomeContent({
 
       {/* Columna derecha en escritorio; en móvil `contents` deja cada tarjeta en su sitio. */}
       <div className="contents xl:col-span-4 xl:flex xl:flex-col xl:gap-5">
+      <FirstSteps />
       {/* Segunda fila: distribución y calendario del mes, siempre en dos columnas. */}
       {byAsset.length > 0 && (
         <div className="grid grid-cols-2 gap-3 md:gap-5">

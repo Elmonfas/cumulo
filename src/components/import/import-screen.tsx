@@ -1,20 +1,25 @@
 "use client";
 
-import { CheckCircle2, FileUp, Loader2, TriangleAlert } from "lucide-react";
+import { CheckCircle2, Download, FileUp, Loader2, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useRef, useState, type DragEvent } from "react";
+import { AssetAvatar } from "@/components/asset-avatar";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { transactionTotal } from "@/domain/portfolio";
 import { getRepositories } from "@/data/repositories";
 import type { TransactionType } from "@/domain/models";
+import { describeOtherBroker, diagnoseFile } from "@/importers/diagnose";
 import { parseTradeRepublicCsv } from "@/importers/trade-republic";
 import { UnrecognizedFormatError, type ParsedImport } from "@/importers/types";
 import { formatCurrency, formatDate, formatQuantity } from "@/lib/format";
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 import { TRANSACTION_TYPE_LABELS } from "@/lib/labels";
+import { useWideScreen } from "@/hooks/use-media-query";
+import { usePortfolio } from "@/hooks/use-portfolio";
+import { saveBackupCopy } from "@/lib/backup-file";
 import { cn } from "@/lib/utils";
 import { commitImport, prepareImport, type ImportPreview } from "@/services/import";
 
@@ -23,7 +28,7 @@ type Step =
   | { name: "reading" }
   | { name: "preview"; preview: ImportPreview; parsed: ParsedImport; fileName: string }
   | { name: "importing"; preview: ImportPreview; parsed: ParsedImport; fileName: string }
-  | { name: "done"; imported: number; replaced: number };
+  | { name: "done"; imported: number; replaced: number; assetIds: string[] };
 
 const TYPE_ORDER: TransactionType[] = ["buy", "sell", "dividend", "interest", "fee"];
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -36,6 +41,11 @@ export function ImportScreen() {
       setStep({ name: "upload", error: { message: "El archivo supera los 10 MB.", columns: [] } });
       return;
     }
+    const wrongFile = diagnoseFile(file.name, new Uint8Array(await file.slice(0, 8).arrayBuffer()));
+    if (wrongFile) {
+      setStep({ name: "upload", error: { message: wrongFile, columns: [] } });
+      return;
+    }
     setStep({ name: "reading" });
     try {
       const parsed = await parseTradeRepublicCsv(await file.text());
@@ -45,8 +55,10 @@ export function ImportScreen() {
       setStep({
         name: "upload",
         error: {
-          message: error instanceof Error ? error.message : "No se pudo leer el archivo.",
-          columns: error instanceof UnrecognizedFormatError ? error.columns : [],
+          message:
+            (error instanceof UnrecognizedFormatError && describeOtherBroker(error.columns)) ||
+            (error instanceof Error ? error.message : "No se pudo leer el archivo."),
+          columns: error instanceof UnrecognizedFormatError && !describeOtherBroker(error.columns) ? error.columns : [],
         },
       });
     }
@@ -61,8 +73,8 @@ export function ImportScreen() {
   async function confirm(preview: ImportPreview, parsed: ParsedImport, fileName: string) {
     setStep({ name: "importing", preview, parsed, fileName });
     try {
-      const { imported, replaced } = await commitImport(getRepositories(), preview);
-      setStep({ name: "done", imported, replaced });
+      const { imported, replaced, assetIds } = await commitImport(getRepositories(), preview);
+      setStep({ name: "done", imported, replaced, assetIds });
     } catch (error) {
       setStep({
         name: "upload",
@@ -91,22 +103,7 @@ export function ImportScreen() {
           onReplaceChange={(ids) => void chooseReplacements(step.parsed, step.fileName, ids)}
         />
       )}
-      {step.name === "done" && (
-        <Card className="flex flex-col items-center px-6 py-12 text-center">
-          <CheckCircle2 className="mb-4 size-10 text-accent" aria-hidden />
-          <h2 className="text-lg font-semibold">
-            {step.imported === 0 ? "No había operaciones nuevas" : `${step.imported} operaciones importadas`}
-          </h2>
-          <p className="mt-2 text-sm text-pretty text-text-muted">
-            {step.replaced > 0 &&
-              `${plural(step.replaced, "alta rápida sustituida", "altas rápidas sustituidas")} por su historial real. `}
-            Los datos se han guardado solo en este dispositivo.
-          </p>
-          <Link href="/operaciones" className={cn(buttonVariants({ size: "lg" }), "mt-6")}>
-            Ver operaciones
-          </Link>
-        </Card>
-      )}
+      {step.name === "done" && <DoneStep imported={step.imported} replaced={step.replaced} assetIds={step.assetIds} />}
     </>
   );
 }
@@ -149,8 +146,8 @@ function UploadStep({
         </div>
         <h2 className="text-lg font-semibold">{busy ? "Leyendo el archivo…" : "Sube tu CSV"}</h2>
         <p className="mt-2 max-w-sm text-sm text-pretty text-text-muted">
-          En la app de Trade Republic: Perfil → Extractos → Exportación de transacciones, desde la apertura de la
-          cuenta. Súbelo tal cual (sin abrirlo en Excel). Se lee en tu dispositivo y no se envía a ningún servidor.
+          La «Exportación de transacciones» de Trade Republic, tal cual, sin abrirla en Excel ni Numbers. Se lee en tu
+          dispositivo y no se envía a ningún servidor.
         </p>
         <input
           ref={input}
@@ -168,6 +165,8 @@ function UploadStep({
           Elegir archivo
         </Button>
       </Card>
+
+      <ExportGuide />
 
       {error && (
         <Card role="alert" className="flex gap-3">
@@ -403,5 +402,158 @@ function QuickReplacements({
         ))}
       </ul>
     </Card>
+  );
+}
+
+const GUIDES = {
+  movil: {
+    label: "En el iPhone",
+    steps: [
+      "En la app de Trade Republic: Perfil → Extractos → Exportación de transacciones.",
+      "Elige desde la apertura de la cuenta y exporta.",
+      "En el menú Compartir, toca «Guardar en Archivos».",
+      "Vuelve aquí, toca «Elegir archivo» y ábrelo desde Archivos.",
+    ],
+  },
+  pc: {
+    label: "En el ordenador",
+    steps: [
+      "Entra en la web de Trade Republic (app.traderepublic.com).",
+      "Perfil → Extractos → Exportación de transacciones, desde la apertura de la cuenta.",
+      "Arrastra el archivo descargado al recuadro de arriba.",
+    ],
+  },
+} as const;
+
+/** Cómo conseguir el archivo, paso a paso. Tarda unos 2 minutos. */
+function ExportGuide() {
+  const wide = useWideScreen();
+  const [chosen, setChosen] = useState<keyof typeof GUIDES | null>(null);
+  const tab = chosen ?? (wide ? "pc" : "movil");
+  return (
+    <Card className="grid grid-cols-[minmax(0,1fr)] gap-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="font-medium">Cómo conseguir el archivo</h2>
+        <span className="text-xs text-text-muted">Unos 2 minutos</span>
+      </div>
+      <div role="tablist" aria-label="Dónde exportas" className="grid grid-cols-2 gap-1 rounded-full border border-border bg-surface-2 p-1">
+        {(Object.keys(GUIDES) as (keyof typeof GUIDES)[]).map((key) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={tab === key}
+            onClick={() => setChosen(key)}
+            className={cn(
+              "h-9 rounded-full text-[13px] font-medium transition-colors outline-none focus-visible:ring-3 focus-visible:ring-accent/40",
+              tab === key ? "bg-surface text-accent shadow-card dark:bg-accent/15" : "text-text-muted hover:text-text",
+            )}
+          >
+            {GUIDES[key].label}
+          </button>
+        ))}
+      </div>
+      <ol role="tabpanel" className="grid gap-3">
+        {GUIDES[tab].steps.map((step, i) => (
+          <li key={step} className="flex gap-3 text-sm">
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent/15 text-xs font-medium text-accent tabular-nums">
+              {i + 1}
+            </span>
+            <span className="pt-0.5 text-pretty">{step}</span>
+          </li>
+        ))}
+      </ol>
+      <p className="text-xs text-pretty text-text-muted">
+        Puedes importar el mismo archivo más adelante: las operaciones que ya estén no se duplican.
+      </p>
+    </Card>
+  );
+}
+
+/** Tras importar: comprobar que cuadra con el bróker y guardar una copia. */
+function DoneStep({ imported, replaced, assetIds }: { imported: number; replaced: number; assetIds: string[] }) {
+  const portfolio = usePortfolio();
+  const [answer, setAnswer] = useState<"yes" | "no" | null>(null);
+  const [saved, setSaved] = useState(false);
+  const positions =
+    portfolio.status === "ready"
+      ? assetIds.flatMap((id) => {
+          const asset = portfolio.data.assets.get(id);
+          const position = portfolio.data.state.positions.get(id);
+          return asset && position?.quantity.gt(0) ? [{ asset, quantity: position.quantity }] : [];
+        })
+      : [];
+
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:gap-5">
+      <Card className="flex flex-col items-center px-6 py-10 text-center">
+        <CheckCircle2 className="mb-4 size-10 text-accent" aria-hidden />
+        <h2 className="text-lg font-semibold">
+          {imported === 0 ? "No había operaciones nuevas" : plural(imported, "operación importada", "operaciones importadas")}
+        </h2>
+        <p className="mt-2 text-sm text-pretty text-text-muted">
+          {replaced > 0 && `${plural(replaced, "alta rápida sustituida", "altas rápidas sustituidas")} por su historial real. `}
+          Los datos se han guardado solo en este dispositivo.
+        </p>
+      </Card>
+
+      {positions.length > 0 && (
+        <Card className="grid grid-cols-[minmax(0,1fr)] gap-4">
+          <div>
+            <h2 className="font-medium">¿Cuadra con Trade Republic?</h2>
+            <p className="mt-1 text-sm text-pretty text-text-muted">Compara las participaciones con las que ves en tu cartera de TR.</p>
+          </div>
+          <ul className="grid gap-3">
+            {positions.map(({ asset, quantity }) => (
+              <li key={asset.id} className="flex items-center gap-3">
+                <AssetAvatar asset={asset} />
+                <span className="min-w-0 flex-1 truncate text-sm font-medium">{asset.name}</span>
+                <span className="text-sm tabular-nums">{formatQuantity(quantity)}</span>
+              </li>
+            ))}
+          </ul>
+          {answer === null && (
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="secondary" onClick={() => setAnswer("yes")}>
+                Sí, cuadra
+              </Button>
+              <Button variant="outline" onClick={() => setAnswer("no")}>
+                No cuadra
+              </Button>
+            </div>
+          )}
+          {answer === "yes" && (
+            <p role="status" className="text-sm text-accent">
+              Perfecto. Cuando hagas más operaciones, exporta e importa otra vez: solo se añade lo nuevo.
+            </p>
+          )}
+          {answer === "no" && (
+            <ul role="status" className="grid gap-2 rounded-2xl bg-surface-2 p-4 text-sm text-pretty">
+              <li>· ¿Exportaste solo un periodo? Exporta otra vez desde la apertura de la cuenta e impórtalo: no se duplica nada.</li>
+              <li>· ¿Registraste a mano alguna operación de ese activo? Revísala en Operaciones.</li>
+              <li>· Los splits y las acciones regaladas aún no se importan: añádelas a mano.</li>
+            </ul>
+          )}
+        </Card>
+      )}
+
+      <Card className="flex flex-wrap items-center justify-between gap-3 py-4 md:py-4">
+        <p className="min-w-0 flex-1 text-sm text-pretty text-text-muted">
+          {saved ? "Copia guardada." : "Guarda una copia por si cambias de móvil."}
+        </p>
+        <Button
+          variant="secondary"
+          disabled={saved}
+          onClick={async () => setSaved(await saveBackupCopy(getRepositories()))}
+        >
+          <Download aria-hidden />
+          Guardar copia
+        </Button>
+      </Card>
+
+      <Link href="/cartera" className={buttonVariants({ size: "lg" })}>
+        Ver mi cartera
+      </Link>
+    </div>
   );
 }

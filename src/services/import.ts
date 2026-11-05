@@ -219,7 +219,7 @@ export async function commitImport(
   repositories: Repositories,
   preview: ImportPreview,
   search: SearchFn = searchViaApi,
-): Promise<{ imported: number; cancelled: number; replaced: number }> {
+): Promise<{ imported: number; cancelled: number; replaced: number; assetIds: string[] }> {
   // Se vuelve a comprobar por si algo cambió entre la vista previa y la confirmación.
   const current = await prepareImport(repositories, preview.parsed, { replaceQuick: preview.replaces.map((t) => t.id) });
   if (current.problem) throw new Error(current.problem);
@@ -240,5 +240,11 @@ export async function commitImport(
       origin: current.parsed.source,
     })),
   );
-  return { imported: fresh.length, cancelled: current.cancels.length, replaced: current.replaces.length };
+  return {
+    imported: fresh.length,
+    cancelled: current.cancels.length,
+    replaced: current.replaces.length,
+    /** Activos con operaciones nuevas, para comprobar el resultado. */
+    assetIds: [...new Set(assetIds.values())],
+  };
 }

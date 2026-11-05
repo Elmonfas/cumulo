@@ -62,7 +62,7 @@ describe("importación", () => {
 
   it("importa, crea el activo por ISIN y reimportar no duplica nada", async () => {
     const file = await sampleFile();
-    expect(await commitImport(repos, await prepareImport(repos, file), search)).toEqual({ imported: 3, cancelled: 0, replaced: 0 });
+    expect(await commitImport(repos, await prepareImport(repos, file), search)).toMatchObject({ imported: 3, cancelled: 0, replaced: 0 });
 
     const assets = await repos.assets.list();
     expect(assets).toHaveLength(1);
@@ -74,7 +74,7 @@ describe("importación", () => {
     const again = await prepareImport(repos, await sampleFile());
     expect(again.newCount).toBe(0);
     expect(again.duplicateCount).toBe(3);
-    expect(await commitImport(repos, again, search)).toEqual({ imported: 0, cancelled: 0, replaced: 0 });
+    expect(await commitImport(repos, again, search)).toMatchObject({ imported: 0, cancelled: 0, replaced: 0 });
     expect(await repos.transactions.list()).toHaveLength(3);
   });
 
@@ -100,17 +100,20 @@ describe("importación", () => {
     it("propone sustituir las del mismo activo y deja las demás", async () => {
       const { vwce, other } = await quickAdds();
       const preview = await prepareImport(repos, await sampleFile());
-      expect(preview.quick.map((q) => [q.asset.id, q.suggested])).toEqual([
-        [vwce.id, true],
-        [other.id, false],
-      ]);
+      // Mismo día: el orden entre ellas no importa.
+      expect(new Map(preview.quick.map((q) => [q.asset.id, q.suggested]))).toEqual(
+        new Map([
+          [vwce.id, true],
+          [other.id, false],
+        ]),
+      );
       expect(preview.replaces.map((t) => t.assetId)).toEqual([vwce.id]);
     });
 
     it("al confirmar, el historial sustituye al alta rápida sin duplicar", async () => {
       const { vwce, other } = await quickAdds();
       const result = await commitImport(repos, await prepareImport(repos, await sampleFile()), search);
-      expect(result).toEqual({ imported: 3, cancelled: 0, replaced: 1 });
+      expect(result).toMatchObject({ imported: 3, cancelled: 0, replaced: 1 });
       const stored = await repos.transactions.list();
       expect(stored.filter((t) => t.origin === "quick").map((t) => t.assetId)).toEqual([other.id]);
       // 2 + 2 − 1 = 3 participaciones de VWCE (las del archivo), no 3 + 3.
@@ -183,7 +186,7 @@ describe("importación del CSV real de Trade Republic", () => {
     const preview = await prepareImport(repos, await file());
     expect(preview.newCount).toBe(3);
     expect(preview.totals.buy!.amount.toDecimalPlaces(2).toString()).toBe("160.25");
-    expect(await commitImport(repos, preview, trSearch)).toEqual({ imported: 3, cancelled: 0, replaced: 0 });
+    expect(await commitImport(repos, preview, trSearch)).toMatchObject({ imported: 3, cancelled: 0, replaced: 0 });
 
     const assets = await repos.assets.list();
     expect(assets.map((a) => a.priceSourceId).sort()).toEqual(["AMZN", "VWCE.DE", "bitcoin"]);
@@ -296,7 +299,7 @@ describe("importación de todos los tipos documentados de Trade Republic", () =>
 
     const second = await prepareImport(repos, await parse([lines[0], lines[18], lines[19]].join("\n")));
     expect(second.cancels.map((t) => t.id)).toEqual([wrong!.id]);
-    expect(await commitImport(repos, second, anySearch)).toEqual({ imported: 1, cancelled: 1, replaced: 0 });
+    expect(await commitImport(repos, second, anySearch)).toMatchObject({ imported: 1, cancelled: 1, replaced: 0 });
     const dividends = (await repos.transactions.list()).filter((t) => t.type === "dividend").map((t) => t.price);
     expect(dividends.sort()).toEqual(["11", "2.4", "2.45", "5.4"]);
   });
