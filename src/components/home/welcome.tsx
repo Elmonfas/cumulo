@@ -1,6 +1,7 @@
 import { ChevronRight, FileUp, ListPlus, ShieldCheck, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { RestoreBackup } from "@/components/backup/restore-backup";
+import { DemoPath } from "./demo-path";
 import { Card } from "@/components/ui/card";
 
 /** Inicio sin datos: elegir cómo empezar. */
@@ -27,6 +28,8 @@ export function Welcome() {
           description="Importa todo tu historial con el archivo que exporta la app. Para la Renta y las gráficas completas."
         />
       </div>
+
+      <DemoPath />
 
       <Card className="flex flex-wrap items-center justify-between gap-3 py-4 md:py-4">
         <p className="text-sm text-pretty text-text-muted">¿Ya usabas cúmulo en otro dispositivo?</p>

@@ -1,6 +1,7 @@
 import type { Repositories } from "@/data/repositories";
 import type { FiredAlert, Reminder, RemoteAlert } from "@/domain/push";
 import { VAPID_PUBLIC_KEY } from "@/push/config";
+import { isDemo } from "./demo";
 import { isIos, isStandalone } from "./device";
 
 /**
@@ -93,7 +94,8 @@ async function request(path: string, method: string, body: unknown) {
  * alertas que él ya disparó con la app cerrada.
  */
 export async function syncPush(repositories: Repositories, prefs = readPushPrefs()): Promise<void> {
-  if (!prefs.enabled) return;
+  // En el modo demo las alertas son de ejemplo: no se mandan al servidor.
+  if (!prefs.enabled || isDemo()) return;
   const subscription = await currentSubscription();
   if (!subscription) return;
   const alerts = prefs.alerts ? await remoteAlerts(repositories) : [];

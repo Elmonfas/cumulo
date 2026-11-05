@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { DemoBanner } from "@/components/demo-banner";
 import { PrivacyBoundary } from "@/components/privacy";
 import { BottomNav } from "./bottom-nav";
 import { Sidebar } from "./sidebar";
@@ -18,6 +19,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         tabIndex={-1}
         className="mx-auto w-full max-w-5xl px-4 xl:max-w-[88rem] xl:px-10 pt-[calc(env(safe-area-inset-top)+1rem)] pb-[calc(env(safe-area-inset-bottom)+6rem)] outline-none md:px-8 md:pt-8 md:pb-12"
       >
+        <DemoBanner />
         <PrivacyBoundary>{children}</PrivacyBoundary>
       </main>
       <BottomNav />
