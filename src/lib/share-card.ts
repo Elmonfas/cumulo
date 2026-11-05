@@ -591,28 +591,3 @@ export async function cardToFile(canvas: HTMLCanvasElement, name: string): Promi
   );
   return new File([blob], name, { type: "image/png" });
 }
-
-/** Comparte con el menú del sistema; si no se puede, descarga la imagen. */
-export async function shareOrDownload(file: File, title: string): Promise<"shared" | "downloaded" | "cancelled"> {
-  if (navigator.canShare?.({ files: [file] })) {
-    try {
-      await navigator.share({ files: [file], title });
-      return "shared";
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return "cancelled";
-    }
-  }
-  downloadFile(file);
-  return "downloaded";
-}
-
-export function downloadFile(file: File) {
-  const url = URL.createObjectURL(file);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = file.name;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}

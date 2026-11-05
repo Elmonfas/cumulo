@@ -1,7 +1,7 @@
 "use client";
 
-import { Download, ShieldCheck, Trash2, Upload, UserRound } from "lucide-react";
-import { useRef, useState } from "react";
+import { Download, ShieldCheck, Trash2, UserRound } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { PeriodSelector } from "@/components/charts/period-selector";
 import { PageHeader } from "@/components/layout/page-header";
 import { rememberAvatar } from "@/components/layout/settings-link";
@@ -14,9 +14,12 @@ import { setPrivacy, usePrivacy } from "@/lib/privacy";
 import { getRepositories, type Repositories } from "@/data/repositories";
 import type { Settings } from "@/domain/models";
 import { useLiveQuery } from "@/hooks/use-live-query";
-import { formatDate } from "@/lib/format";
-import { downloadText, squareThumbnail } from "@/lib/image";
-import { exportBackup, readBackup, restoreBackup, wipeAllData, type BackupSummary } from "@/services/backup";
+import { RestoreBackup } from "@/components/backup/restore-backup";
+import { isIos } from "@/lib/device";
+import { downloadFile, shareOrDownload, squareThumbnail } from "@/lib/image";
+import { storageStatus, type StorageStatus } from "@/lib/storage";
+import { cn } from "@/lib/utils";
+import { exportBackup, wipeAllData } from "@/services/backup";
 
 const loadSettings = (repositories: Repositories) => repositories.settings.get();
 
@@ -153,42 +156,22 @@ function ProfileCard({ settings }: { settings: Settings }) {
   );
 }
 
-type RestoreState = { status: "idle" } | { status: "confirm"; summary: BackupSummary } | { status: "done"; message: string };
-
 function DataCard() {
-  const fileInput = useRef<HTMLInputElement>(null);
-  const [restore, setRestore] = useState<RestoreState>({ status: "idle" });
-  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [confirmWipe, setConfirmWipe] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [storage, setStorage] = useState<StorageStatus | null>(null);
+
+  useEffect(() => {
+    void storageStatus().then(setStorage);
+  }, []);
 
   async function onExport() {
     const { fileName, json } = await exportBackup(getRepositories());
-    downloadText(fileName, json);
-  }
-
-  async function onFile(file: File) {
-    setError(null);
-    try {
-      setRestore({ status: "confirm", summary: readBackup(await file.text()) });
-    } catch (e) {
-      setRestore({ status: "idle" });
-      setError(e instanceof Error ? e.message : "No se pudo leer el archivo.");
-    }
-  }
-
-  async function onRestore(summary: BackupSummary) {
-    setBusy(true);
-    try {
-      await restoreBackup(getRepositories(), summary.data);
-      rememberAvatar(Boolean(summary.data.settings.avatar));
-      setRestore({ status: "done", message: `Backup restaurado: ${summary.transactions} operaciones y ${summary.assets} activos.` });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo restaurar.");
-      setRestore({ status: "idle" });
-    } finally {
-      setBusy(false);
-    }
+    const file = new File([json], fileName, { type: "application/json" });
+    // En iPhone, el menú Compartir deja guardarlo en Archivos o iCloud Drive.
+    if (isIos()) await shareOrDownload(file, "Copia de cúmulo");
+    else downloadFile(file);
   }
 
   async function onWipe() {
@@ -201,7 +184,7 @@ function DataCard() {
     rememberAvatar(false);
     setBusy(false);
     setConfirmWipe(false);
-    setRestore({ status: "done", message: "Se han borrado todos los datos de este navegador." });
+    setMessage("Se han borrado todos los datos de este navegador.");
   }
 
   return (
@@ -209,56 +192,21 @@ function DataCard() {
       <div>
         <h2 className="font-medium">Copia de seguridad</h2>
         <p className="mt-1 text-sm text-pretty text-text-muted">
-          Un archivo JSON con todas tus operaciones, activos y ajustes. Restáuralo en otro navegador o dispositivo.
+          Un archivo con todas tus operaciones, activos y ajustes. En iPhone, guárdalo en Archivos → iCloud Drive y
+          restáuralo en otro dispositivo.
         </p>
       </div>
-      <div className="flex flex-col gap-2 sm:flex-row">
+      <div className="flex flex-col flex-wrap gap-2 sm:flex-row">
         <Button variant="secondary" onClick={onExport} className="sm:flex-1">
           <Download aria-hidden />
-          Exportar backup
+          Guardar copia
         </Button>
-        <Button variant="outline" onClick={() => fileInput.current?.click()} className="sm:flex-1">
-          <Upload aria-hidden />
-          Restaurar backup
-        </Button>
-        <input
-          ref={fileInput}
-          type="file"
-          accept="application/json,.json"
-          className="sr-only"
-          aria-label="Archivo de backup"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) void onFile(file);
-            e.target.value = "";
-          }}
-        />
+        <RestoreBackup className="sm:flex-1" />
       </div>
-
-      {restore.status === "confirm" && (
-        <div role="alertdialog" aria-label="Confirmar restauración" className="grid gap-3 rounded-2xl border border-accent/40 bg-accent/10 p-4">
-          <p className="text-sm text-pretty">
-            Backup del {formatDate(restore.summary.exportedAt.slice(0, 10))} con {restore.summary.transactions} operaciones y{" "}
-            {restore.summary.assets} activos. <strong className="font-medium">Sustituirá todos los datos actuales.</strong>
-          </p>
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button variant="ghost" size="sm" onClick={() => setRestore({ status: "idle" })} disabled={busy}>
-              Cancelar
-            </Button>
-            <Button size="sm" onClick={() => onRestore(restore.summary)} disabled={busy}>
-              Restaurar
-            </Button>
-          </div>
-        </div>
-      )}
-      {restore.status === "done" && (
+      {storage && storage !== "unsupported" && <StorageLine status={storage} />}
+      {message && (
         <p role="status" className="text-sm text-accent">
-          {restore.message}
-        </p>
-      )}
-      {error && (
-        <p role="alert" className="text-sm text-pretty text-accent">
-          {error}
+          {message}
         </p>
       )}
 
@@ -269,5 +217,16 @@ function DataCard() {
         </Button>
       </div>
     </Card>
+  );
+}
+
+function StorageLine({ status }: { status: Exclude<StorageStatus, "unsupported"> }) {
+  return (
+    <p className="flex gap-2 text-xs text-pretty text-text-muted">
+      <ShieldCheck className={cn("mt-px size-4 shrink-0", status === "persistent" && "text-accent")} aria-hidden />
+      {status === "persistent"
+        ? "Datos protegidos: el navegador no los borrará para hacer sitio."
+        : "El navegador podría borrar los datos si se queda sin espacio. Instalar cúmulo en la pantalla de inicio y guardar copias lo evita."}
+    </p>
   );
 }

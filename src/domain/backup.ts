@@ -43,7 +43,7 @@ const MAX_AVATAR_LENGTH = 400_000;
 const ASSET_TYPES = new Set(["stock", "etf", "crypto", "other"]);
 const PRICE_SOURCES = new Set(["coingecko", "yahoo", "manual"]);
 const TRANSACTION_TYPES = new Set(["buy", "sell", "dividend", "interest", "fee", "deposit", "withdrawal"]);
-const ORIGINS = new Set(["manual", "csv-tr"]);
+const ORIGINS = new Set(["manual", "quick", "csv-tr"]);
 const PERIODS = new Set(["1D", "1W", "1M", "YTD", "1Y", "ALL"]);
 
 /** Valida la forma de un backup leído de un archivo y lo devuelve tipado. */

@@ -5,6 +5,7 @@ import { GeistSans } from "geist/font/sans";
 import type { Metadata, Viewport } from "next";
 import { AppShell } from "@/components/layout/app-shell";
 import { SplashScreen, splashInitScript } from "@/components/splash-screen";
+import { StoragePersist } from "@/components/storage-persist";
 import { ThemeSync } from "@/components/theme-sync";
 import { THEME_COLORS, themeInitScript } from "@/lib/theme";
 import "./globals.css";
@@ -41,6 +42,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <SerwistProvider swUrl="/serwist/sw.js" disable={process.env.NODE_ENV === "development"}>
           <ThemeSync />
           <PushSync />
+          <StoragePersist />
           <AppShell>{children}</AppShell>
         </SerwistProvider>
       </body>

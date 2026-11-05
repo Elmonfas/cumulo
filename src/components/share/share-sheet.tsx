@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import type { ShareOptions } from "@/lib/share-builders";
-import { cardToFile, downloadFile, renderShareCard, shareOrDownload, type CardFormat, type CardModel, type CardTheme } from "@/lib/share-card";
+import { downloadFile, shareOrDownload } from "@/lib/image";
+import { cardToFile, renderShareCard, type CardFormat, type CardModel, type CardTheme } from "@/lib/share-card";
 import { renderOrbitCard } from "@/lib/share-card-styles/orbita";
 import { cn } from "@/lib/utils";
 

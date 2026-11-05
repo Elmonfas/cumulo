@@ -1,6 +1,7 @@
 import type { Repositories } from "@/data/repositories";
 import type { FiredAlert, Reminder, RemoteAlert } from "@/domain/push";
 import { VAPID_PUBLIC_KEY } from "@/push/config";
+import { isIos, isStandalone } from "./device";
 
 /**
  * Notificaciones push reales (con la app cerrada). Lo que sale del navegador:
@@ -39,12 +40,6 @@ function writePushPrefs(prefs: PushPrefs) {
     // Sin almacenamiento: las preferencias duran lo que la pestaña.
   }
 }
-
-export const isIos = () =>
-  /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-
-export const isStandalone = () =>
-  window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
 
 /** En iPhone, el push solo existe en la app añadida a la pantalla de inicio (iOS 16.4+). */
 export function pushSupport(): PushSupport {

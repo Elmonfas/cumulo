@@ -21,7 +21,8 @@ export interface Asset {
 }
 
 export type TransactionType = "buy" | "sell" | "dividend" | "interest" | "fee" | "deposit" | "withdrawal";
-export type TransactionOrigin = "manual" | "csv-tr";
+/** "quick": alta rápida de una posición (cantidad y precio medio), sin el historial real. */
+export type TransactionOrigin = "manual" | "quick" | "csv-tr";
 
 export interface Transaction {
   id: string;

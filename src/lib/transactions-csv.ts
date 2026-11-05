@@ -35,7 +35,7 @@ export function transactionsCsv(transactions: readonly Transaction[], assets: Re
       new Decimal(t.fee),
       new Decimal(t.tax),
       transactionTotal(t).toDecimalPlaces(2),
-      t.origin === "csv-tr" ? "Trade Republic" : "Manual",
+      t.origin === "csv-tr" ? "Trade Republic" : t.origin === "quick" ? "Alta rápida" : "Manual",
     ];
   });
   return toCsv(header, rows);

@@ -116,6 +116,13 @@ export function PositionDetail({ data, assetId }: { data: PortfolioData; assetId
         ))}
       </dl>
 
+      {assetTransactions.some((t) => t.origin === "quick") && (
+        <p className="text-xs text-pretty text-text-muted">
+          Añadida con el alta rápida (cantidad y precio medio). Importa el historial de tu bróker para tener la Renta y la
+          rentabilidad anual exactas.
+        </p>
+      )}
+
       {cached && (
         <p className="text-xs text-text-muted">
           Precio del {formatDate(cached.updatedAt.slice(0, 10))} a las {formatTime(cached.updatedAt)}.

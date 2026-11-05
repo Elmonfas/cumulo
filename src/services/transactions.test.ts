@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDatabase, type CumuloDB } from "@/data/db";
 import { createDexieRepositories } from "@/data/repositories/dexie";
 import type { Repositories } from "@/data/repositories";
-import { deleteTransaction, ensureAsset, saveTransaction, type TransactionDraft } from "./transactions";
+import { buildPortfolio } from "@/domain/portfolio";
+import { deleteTransaction, ensureAsset, saveQuickPosition, saveTransaction, type TransactionDraft } from "./transactions";
 
 const draft = (overrides: Partial<TransactionDraft>): TransactionDraft => ({
   type: "buy",
@@ -75,5 +76,16 @@ describe("servicio de operaciones", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.message).toMatch(/^No se puede borrar/);
     expect(await repos.transactions.list()).toHaveLength(2);
+  });
+
+  it("el alta rápida guarda una compra al precio medio y el coste cuadra", async () => {
+    // 12 participaciones a 105,37 € de media → coste 1.264,44 €, sin comisión aparte.
+    const result = await saveQuickPosition(repos, { assetId, quantity: "12", averagePrice: "105.37", date: "2026-11-05" });
+    expect(result.ok).toBe(true);
+    const [t] = await repos.transactions.list();
+    expect([t.type, t.origin, t.quantity, t.price, t.fee, t.tax]).toEqual(["buy", "quick", "12", "105.37", "0", "0"]);
+    const position = buildPortfolio([t]).positions.get(assetId)!;
+    expect(position.quantity.toString()).toBe("12");
+    expect(position.cost.toString()).toBe("1264.44");
   });
 });

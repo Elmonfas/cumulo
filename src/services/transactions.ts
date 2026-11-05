@@ -1,6 +1,6 @@
 import Decimal from "decimal.js";
 import type { Repositories } from "@/data/repositories";
-import type { Asset, Transaction, TransactionType } from "@/domain/models";
+import type { Asset, Transaction, TransactionOrigin, TransactionType } from "@/domain/models";
 import { checkTransactions, OversellError } from "@/domain/portfolio";
 import { formatDate, formatNumber } from "@/lib/format";
 import type { AssetCandidate } from "@/prices/types";
@@ -43,11 +43,12 @@ export async function saveTransaction(
   repositories: Repositories,
   draft: TransactionDraft,
   existingId?: string,
+  origin: Exclude<TransactionOrigin, "csv-tr"> = "manual",
 ): Promise<SaveResult> {
   const all = await repositories.transactions.list();
   const candidate: Transaction[] = existingId
     ? all.map((t) => (t.id === existingId ? { ...t, ...draft } : t))
-    : [...all, { ...draft, id: DRAFT_ID, origin: "manual" }];
+    : [...all, { ...draft, id: DRAFT_ID, origin }];
 
   const error = checkTransactions(candidate);
   if (error) return { ok: false, message: await describeError(repositories, error) };
@@ -56,8 +57,29 @@ export async function saveTransaction(
     await repositories.transactions.update(existingId, draft);
     return { ok: true };
   }
-  const transaction = await repositories.transactions.add({ ...draft, origin: "manual" });
+  const transaction = await repositories.transactions.add({ ...draft, origin });
   return { ok: true, transaction };
+}
+
+export interface QuickPositionDraft {
+  assetId: string;
+  quantity: string;
+  /** Precio medio por unidad, comisiones incluidas. */
+  averagePrice: string;
+  date: string;
+}
+
+/**
+ * Alta rápida: lo que tienes hoy como una sola compra al precio medio. Sin
+ * comisión aparte (ya va en el precio medio), así el coste cuadra con el bróker.
+ */
+export function saveQuickPosition(repositories: Repositories, draft: QuickPositionDraft): Promise<SaveResult> {
+  return saveTransaction(
+    repositories,
+    { type: "buy", assetId: draft.assetId, date: draft.date, quantity: draft.quantity, price: draft.averagePrice, fee: "0", tax: "0" },
+    undefined,
+    "quick",
+  );
 }
 
 export async function deleteTransaction(repositories: Repositories, id: string): Promise<SaveResult> {

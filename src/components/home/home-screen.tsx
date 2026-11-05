@@ -1,23 +1,21 @@
 "use client";
 
 import Decimal from "decimal.js";
-import { FileUp, Plus, Sparkles } from "lucide-react";
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AnimatedAmount } from "@/components/animated-amount";
 import { AssetAvatar } from "@/components/asset-avatar";
 import { PeriodSelector } from "@/components/charts/period-selector";
-import { EmptyState } from "@/components/empty-state";
+import { InstallCard } from "@/components/install-card";
 import { LogoLockup } from "@/components/logo";
 import { PageHeader } from "@/components/layout/page-header";
 import { QuoteFreshness, quotesOf } from "@/components/portfolio/quote-freshness";
 import { RefreshPricesButton } from "@/components/portfolio/refresh-prices-button";
 import { TriggeredAlerts } from "./triggered-alerts";
+import { Welcome } from "./welcome";
 import { CalendarWidget } from "@/components/calendar/calendar-widget";
 import { GoalWidget } from "@/components/goals/goal-widget";
 import { AssetSwitcher } from "./asset-switcher";
-import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { VariationAmount, VariationBadge } from "@/components/variation-badge";
 import type { Repositories } from "@/data/repositories";
@@ -70,6 +68,7 @@ export function HomeScreen() {
     <>
       <LogoLockup className="mb-4 md:hidden" />
       <PageHeader title={greeting} description="Tus inversiones, de un vistazo." />
+      <InstallCard className="mb-4 md:mb-5" />
       {portfolio.status === "loading" && <div className="h-72 animate-pulse rounded-card bg-surface" aria-hidden />}
       {portfolio.status === "error" && (
         <Card className="text-sm text-pretty text-text-muted">
@@ -78,23 +77,7 @@ export function HomeScreen() {
       )}
       {portfolio.status === "ready" &&
         (portfolio.data.transactions.length === 0 ? (
-          <EmptyState
-            icon={Sparkles}
-            title="Empieza tu cartera"
-            description="Importa el CSV de Trade Republic o registra tu primera operación. Tus datos se guardan solo en este dispositivo."
-            actions={
-              <>
-                <Link href="/operaciones" className={buttonVariants({ size: "lg" })}>
-                  <Plus aria-hidden />
-                  Añadir operación
-                </Link>
-                <Link href="/operaciones/importar" className={buttonVariants({ size: "lg", variant: "outline" })}>
-                  <FileUp aria-hidden />
-                  Importar CSV
-                </Link>
-              </>
-            }
-          />
+          <Welcome />
         ) : (
           <HomeContent
             data={portfolio.data}
