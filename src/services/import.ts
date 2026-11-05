@@ -2,6 +2,7 @@ import Decimal from "decimal.js";
 import type { Repositories } from "@/data/repositories";
 import type { Asset, Transaction, TransactionType } from "@/domain/models";
 import { checkTransactions, transactionTotal } from "@/domain/portfolio";
+import { suggestQuickReplacements } from "@/domain/quick-replace";
 import { CASH_TRANSACTION_TYPES } from "@/lib/labels";
 import type { ImportedAssetRef, ImportedTransaction, ParsedImport } from "@/importers/types";
 import type { AssetCandidate, AssetSearchResponse } from "@/prices/types";
@@ -31,6 +32,15 @@ export interface ImportPreview {
   problem: string | null;
   /** Dividendos ya importados que una corrección del archivo anula al confirmar. */
   cancels: Transaction[];
+  /** Altas rápidas guardadas; `suggested` si su activo aparece en el archivo. */
+  quick: { transaction: Transaction; asset: Asset; suggested: boolean }[];
+  /** Altas rápidas que se borran al confirmar: el archivo trae sus compras reales. */
+  replaces: Transaction[];
+}
+
+export interface PrepareOptions {
+  /** Ids de las altas rápidas a sustituir. Si falta, las propuestas. */
+  replaceQuick?: readonly string[];
 }
 
 const assetKey = (ref: ImportedAssetRef) =>
@@ -40,7 +50,7 @@ const assetKey = (ref: ImportedAssetRef) =>
       ? `crypto:${ref.ticker.toUpperCase()}`
       : `name:${ref.name.toLowerCase()}`;
 
-export async function prepareImport(repositories: Repositories, input: ParsedImport): Promise<ImportPreview> {
+export async function prepareImport(repositories: Repositories, input: ParsedImport, options: PrepareOptions = {}): Promise<ImportPreview> {
   // Depósitos y retiradas no se importan: el efectivo vive en el bróker.
   const cashRows = input.transactions.filter((t) => CASH_TRANSACTION_TYPES.includes(t.type));
   const parsed: ParsedImport = {
@@ -71,12 +81,21 @@ export async function prepareImport(repositories: Repositories, input: ParsedImp
     else parsed.skipped = [...parsed.skipped, { line: correction.line, reason: "Corrección de un dividendo que no está importado" }];
   }
   parsed.skipped = [...parsed.skipped].sort((a, b) => a.line - b.line);
-  const existing = stored.filter((t) => !cancels.includes(t));
+  const assetById = new Map(assets.map((a) => [a.id, a]));
+  const quickStored = stored.filter((t) => t.origin === "quick" && t.assetId && assetById.has(t.assetId));
+  const fileAssets = parsed.transactions.flatMap((t) => (t.asset ? [t.asset] : []));
+  const suggested = suggestQuickReplacements(
+    quickStored.map((t) => ({ transactionId: t.id, asset: assetById.get(t.assetId!)! })),
+    fileAssets,
+  );
+  const chosen = new Set(options.replaceQuick ?? suggested);
+  const quick = quickStored.map((t) => ({ transaction: t, asset: assetById.get(t.assetId!)!, suggested: suggested.has(t.id) }));
+  const replaces = quickStored.filter((t) => chosen.has(t.id));
+  const existing = stored.filter((t) => !cancels.includes(t) && !replaces.includes(t));
   const existingHashes = await repositories.transactions.existingImportHashes(parsed.transactions.map((t) => t.importHash));
 
   // Operaciones registradas a mano que coinciden con una fila del archivo (mismo
   // activo por ISIN o ticker cripto, mismo día, tipo y cantidad): se dan por la misma.
-  const assetById = new Map(assets.map((a) => [a.id, a]));
   const manualKeys = new Map<string, number>();
   for (const t of existing) {
     const asset = t.assetId ? assetById.get(t.assetId) : undefined;
@@ -146,6 +165,8 @@ export async function prepareImport(repositories: Repositories, input: ParsedImp
     totals,
     problem,
     cancels,
+    quick,
+    replaces,
   };
 }
 
@@ -198,9 +219,9 @@ export async function commitImport(
   repositories: Repositories,
   preview: ImportPreview,
   search: SearchFn = searchViaApi,
-): Promise<{ imported: number; cancelled: number }> {
+): Promise<{ imported: number; cancelled: number; replaced: number }> {
   // Se vuelve a comprobar por si algo cambió entre la vista previa y la confirmación.
-  const current = await prepareImport(repositories, preview.parsed);
+  const current = await prepareImport(repositories, preview.parsed, { replaceQuick: preview.replaces.map((t) => t.id) });
   if (current.problem) throw new Error(current.problem);
 
   const assetIds = new Map<string, string>();
@@ -211,7 +232,7 @@ export async function commitImport(
     if (!assetIds.has(key)) assetIds.set(key, (await resolveImportedAsset(repositories, t.asset, search)).id);
   }
 
-  for (const t of current.cancels) await repositories.transactions.remove(t.id);
+  for (const t of [...current.cancels, ...current.replaces]) await repositories.transactions.remove(t.id);
   await repositories.transactions.bulkAdd(
     fresh.map(({ asset, line: _line, ...t }) => ({
       ...t,
@@ -219,5 +240,5 @@ export async function commitImport(
       origin: current.parsed.source,
     })),
   );
-  return { imported: fresh.length, cancelled: current.cancels.length };
+  return { imported: fresh.length, cancelled: current.cancels.length, replaced: current.replaces.length };
 }

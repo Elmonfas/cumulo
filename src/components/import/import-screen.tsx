@@ -10,7 +10,7 @@ import { transactionTotal } from "@/domain/portfolio";
 import { getRepositories } from "@/data/repositories";
 import type { TransactionType } from "@/domain/models";
 import { parseTradeRepublicCsv } from "@/importers/trade-republic";
-import { UnrecognizedFormatError } from "@/importers/types";
+import { UnrecognizedFormatError, type ParsedImport } from "@/importers/types";
 import { formatCurrency, formatDate, formatQuantity } from "@/lib/format";
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -21,9 +21,9 @@ import { commitImport, prepareImport, type ImportPreview } from "@/services/impo
 type Step =
   | { name: "upload"; error?: { message: string; columns: string[] } }
   | { name: "reading" }
-  | { name: "preview"; preview: ImportPreview; fileName: string }
-  | { name: "importing"; preview: ImportPreview; fileName: string }
-  | { name: "done"; imported: number };
+  | { name: "preview"; preview: ImportPreview; parsed: ParsedImport; fileName: string }
+  | { name: "importing"; preview: ImportPreview; parsed: ParsedImport; fileName: string }
+  | { name: "done"; imported: number; replaced: number };
 
 const TYPE_ORDER: TransactionType[] = ["buy", "sell", "dividend", "interest", "fee"];
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -40,7 +40,7 @@ export function ImportScreen() {
     try {
       const parsed = await parseTradeRepublicCsv(await file.text());
       const preview = await prepareImport(getRepositories(), parsed);
-      setStep({ name: "preview", preview, fileName: file.name });
+      setStep({ name: "preview", preview, parsed, fileName: file.name });
     } catch (error) {
       setStep({
         name: "upload",
@@ -52,11 +52,17 @@ export function ImportScreen() {
     }
   }
 
-  async function confirm(preview: ImportPreview, fileName: string) {
-    setStep({ name: "importing", preview, fileName });
+  /** Marca o desmarca qué altas rápidas sustituye el archivo; recalcula la vista previa. */
+  async function chooseReplacements(parsed: ParsedImport, fileName: string, replaceQuick: string[]) {
+    const preview = await prepareImport(getRepositories(), parsed, { replaceQuick });
+    setStep({ name: "preview", preview, parsed, fileName });
+  }
+
+  async function confirm(preview: ImportPreview, parsed: ParsedImport, fileName: string) {
+    setStep({ name: "importing", preview, parsed, fileName });
     try {
-      const { imported } = await commitImport(getRepositories(), preview);
-      setStep({ name: "done", imported });
+      const { imported, replaced } = await commitImport(getRepositories(), preview);
+      setStep({ name: "done", imported, replaced });
     } catch (error) {
       setStep({
         name: "upload",
@@ -81,7 +87,8 @@ export function ImportScreen() {
           fileName={step.fileName}
           busy={step.name === "importing"}
           onCancel={() => setStep({ name: "upload" })}
-          onConfirm={() => confirm(step.preview, step.fileName)}
+          onConfirm={() => confirm(step.preview, step.parsed, step.fileName)}
+          onReplaceChange={(ids) => void chooseReplacements(step.parsed, step.fileName, ids)}
         />
       )}
       {step.name === "done" && (
@@ -90,7 +97,11 @@ export function ImportScreen() {
           <h2 className="text-lg font-semibold">
             {step.imported === 0 ? "No había operaciones nuevas" : `${step.imported} operaciones importadas`}
           </h2>
-          <p className="mt-2 text-sm text-text-muted">Los datos se han guardado solo en este dispositivo.</p>
+          <p className="mt-2 text-sm text-pretty text-text-muted">
+            {step.replaced > 0 &&
+              `${plural(step.replaced, "alta rápida sustituida", "altas rápidas sustituidas")} por su historial real. `}
+            Los datos se han guardado solo en este dispositivo.
+          </p>
           <Link href="/operaciones" className={cn(buttonVariants({ size: "lg" }), "mt-6")}>
             Ver operaciones
           </Link>
@@ -182,13 +193,16 @@ function PreviewStep({
   busy,
   onCancel,
   onConfirm,
+  onReplaceChange,
 }: {
   preview: ImportPreview;
   fileName: string;
   busy: boolean;
   onCancel: () => void;
   onConfirm: () => void;
+  onReplaceChange: (ids: string[]) => void;
 }) {
+  const replacing = new Set(preview.replaces.map((t) => t.id));
   const types = TYPE_ORDER.filter((t) => preview.totals[t]);
   const importedBefore = preview.rows.filter((r) => r.duplicateOf === "import").length;
   const manualDuplicates = preview.rows.filter((r) => r.duplicateOf === "manual").length;
@@ -234,6 +248,17 @@ function PreviewStep({
           </dl>
         )}
       </Card>
+
+      {preview.quick.length > 0 && (
+        <QuickReplacements
+          preview={preview}
+          replacing={replacing}
+          disabled={busy}
+          onToggle={(id) =>
+            onReplaceChange(replacing.has(id) ? [...replacing].filter((x) => x !== id) : [...replacing, id])
+          }
+        />
+      )}
 
       {preview.parsed.skipped.length > 0 && (
         <details className="group rounded-card border border-border bg-surface">
@@ -330,5 +355,53 @@ function PreviewStep({
         </Button>
       </div>
     </div>
+  );
+}
+
+/** Altas rápidas: las del mismo activo que el archivo se sustituyen por su historial real. */
+function QuickReplacements({
+  preview,
+  replacing,
+  disabled,
+  onToggle,
+}: {
+  preview: ImportPreview;
+  replacing: Set<string>;
+  disabled: boolean;
+  onToggle: (id: string) => void;
+}) {
+  return (
+    <Card className="grid grid-cols-[minmax(0,1fr)] gap-3">
+      <div>
+        <h2 className="font-medium">Posiciones del alta rápida</h2>
+        <p className="mt-1 text-sm text-pretty text-text-muted">
+          Las marcadas se sustituyen por las compras reales del archivo, para no contarlas dos veces. Desmarca las que
+          no sean de esta cuenta.
+        </p>
+      </div>
+      <ul className="grid gap-1">
+        {preview.quick.map(({ transaction: t, asset, suggested }) => (
+          <li key={t.id}>
+            <label className="flex cursor-pointer items-center gap-3 rounded-2xl px-2 py-2.5 hover:bg-surface-2">
+              <input
+                type="checkbox"
+                checked={replacing.has(t.id)}
+                disabled={disabled}
+                onChange={() => onToggle(t.id)}
+                aria-label={`Sustituir el alta rápida de ${asset.name}`}
+                className="size-5 shrink-0 accent-accent"
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium">{asset.name}</span>
+                <span className="block text-xs text-text-muted tabular-nums">
+                  {formatQuantity(t.quantity)} uds a {formatCurrency(t.price)}
+                  {suggested ? " · está en el archivo" : " · no está en el archivo"}
+                </span>
+              </span>
+            </label>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }
